@@ -10,7 +10,7 @@
     { key: readability-identifier-naming.ClassCase,
       value: 'CamelCase' },
     { key: readability-identifier-naming.ConstantPrefix,
-      value: 'k' },
+      value: 'c' },
     { key: readability-identifier-naming.ConstantCase,
       value: 'CamelCase' },
     { key: readability-identifier-naming.EnumCase,
