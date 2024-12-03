@@ -6,17 +6,20 @@
 
 class EarleyParser {
   struct Situation {
-    const Rule& rule;
-    size_t dot_position;
+    NonTerminal from;
+    GrammarProductionResult::const_iterator dot_position;
+    const GrammarProductionResult::const_iterator end_position;
     size_t prev_position;
 
-    char shift() {
-      ++dot_position;
-      return rule.right[dot_position];
-    }
+    Situation(NonTerminal left, const GrammarProductionResult& right,
+              size_t prev_position)
+        : from(left),
+          dot_position(right.cbegin()),
+          end_position(right.cend()),
+          prev_position(prev_position) {}
   };
 
-  using SituationsContainer = std::unordered_multimap<char, Situation>;
+  using SituationsContainer = std::unordered_multimap<ssize_t, Situation>;
 
   Grammar grammar_;
 
@@ -26,9 +29,18 @@ class EarleyParser {
                           SituationsContainer& next, char symbol);
 
   static auto extract_situations(const SituationsContainer& container,
-                                 char next_symbol) {
+                                 ssize_t next_symbol) {
     auto [beg, end] = container.equal_range(next_symbol);
     return std::ranges::subrange{beg, end} | std::views::values;
+  }
+
+  static auto emplace_situation(SituationsContainer& container,
+                                Situation situation) {
+    if (situation.dot_position != situation.end_position) {
+      container.emplace(situation.dot_position.as_number(), situation);
+    } else {
+      container.emplace(0, situation);
+    }
   }
 
  public:

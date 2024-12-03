@@ -1,18 +1,18 @@
 #include "EarleyParser.h"
 
+#include <algorithm>
+
 void EarleyParser::scan_action(const SituationsContainer& previous,
                                SituationsContainer& next, char symbol) {
   for (Situation situation : extract_situations(previous, symbol)) {
-    char next_symbol = situation.shift();
-    next.emplace(next_symbol, situation);
+    ++situation.dot_position;
+    emplace_situation(next, situation);
   }
 }
 
 EarleyParser EarleyParser::fit(Grammar grammar) {
   grammar.extend();
-
   EarleyParser parser(std::move(grammar));
-
   return parser;
 }
 
@@ -27,9 +27,9 @@ bool EarleyParser::predict(std::string_view word) const {
   SituationsContainer prev_added;
   SituationsContainer curr_added;
 
-  Situation start{grammar_.get_rules_for(Grammar::cExtendedGrammarStart)[0], 0,
-                  0};
-  curr_added.emplace(Grammar::cGrammarStart, start);
+  Situation start(grammar_.get_start(),
+                  grammar_.get_start_productions().front(), 0);
+  emplace_situation(curr_added, start);
 
   for (size_t i = 0; i <= size; ++i) {
     if (i != 0) {
@@ -41,26 +41,26 @@ bool EarleyParser::predict(std::string_view word) const {
       curr_added.clear();
 
       // complete
-      for (const Situation& situation :
-           extract_situations(prev_added, Grammar::cRuleEndSymbol)) {
+      for (const Situation& situation : extract_situations(prev_added, 0)) {
         auto parents = extract_situations(situations[situation.prev_position],
-                                          situation.rule.left);
+                                          situation.from.as_number());
         for (Situation parent_situation : parents) {
-          char next_symbol = parent_situation.shift();
-          curr_added.emplace(next_symbol, parent_situation);
+          ++parent_situation.dot_position;
+          emplace_situation(curr_added, parent_situation);
         }
       }
 
       // predict
-      for (char non_terminal : Grammar::get_non_terminals_view()) {
-        if (!prev_added.contains(non_terminal)) {
+      for (NonTerminal non_terminal :
+           grammar_.get_productions() | std::views::keys) {
+        if (!prev_added.contains(non_terminal.as_number())) {
           continue;
         }
 
-        for (const Rule& rule : grammar_.get_rules_for(non_terminal)) {
-          char next_symbol = rule.right.front();
-          Situation new_situation{rule, 0, i};
-          curr_added.emplace(next_symbol, new_situation);
+        for (const GrammarProductionResult& production :
+             grammar_.get_productions_for(non_terminal)) {
+          Situation new_situation(non_terminal, production, i);
+          emplace_situation(curr_added, new_situation);
         }
       }
 
@@ -70,13 +70,8 @@ bool EarleyParser::predict(std::string_view word) const {
     }
   }
 
-  for (const Situation& situation :
-       extract_situations(situations[size], Grammar::cRuleEndSymbol)) {
-    if (situation.prev_position == 0 && situation.dot_position == 1 &&
-        situation.rule.left == Grammar::cExtendedGrammarStart) {
-      return true;
-    }
-  }
-
-  return false;
+  return std::ranges::any_of(extract_situations(situations[size], 0),
+                             [this](const Situation& situation) {
+                               return situation.from == grammar_.get_start();
+                             });
 }

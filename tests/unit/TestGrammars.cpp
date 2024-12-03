@@ -1,87 +1,87 @@
 #include "TestGrammars.h"
 
+#include "GrammarBuilder.h"
+
 static Grammar GetEvenPalindromesGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
-  grammar.add_rule('S', "aSa");
-  grammar.add_rule('S', "bSb");
-  grammar.add_rule('S', "");
+  builder.add_rule('S', "aSa");
+  builder.add_rule('S', "bSb");
+  builder.add_rule('S', "");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 static Grammar GetPalindromesGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
-  grammar.add_rule('S', "aSa");
-  grammar.add_rule('S', "bSb");
-  grammar.add_rule('S', "b");
-  grammar.add_rule('S', "a");
-  grammar.add_rule('S', "");
+  builder.add_rule('S', "aSa");
+  builder.add_rule('S', "bSb");
+  builder.add_rule('S', "b");
+  builder.add_rule('S', "a");
+  builder.add_rule('S', "");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 static Grammar GetParenthesesGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
   // here a is (, b is )
-  grammar.add_rule('S', "SS");
-  grammar.add_rule('S', "aSb");
-  grammar.add_rule('S', "ab");
+  builder.add_rule('S', "SS");
+  builder.add_rule('S', "aSb");
+  builder.add_rule('S', "ab");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 static Grammar GetMatchingPairsGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
-  grammar.add_rule('S', "aSb");
-  grammar.add_rule('S', "ab");
+  builder.add_rule('S', "aSb");
+  builder.add_rule('S', "ab");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 static Grammar GetMatchingPairsWithEmptyGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
-  grammar.add_rule('S', "aSb");
-  grammar.add_rule('S', "ab");
-  grammar.add_rule('S', "");
+  builder.add_rule('S', "aSb");
+  builder.add_rule('S', "ab");
+  builder.add_rule('S', "");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 static Grammar GetEmptyGrammar() { return {}; }
 
 static Grammar GetEmptyWordGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
-  grammar.add_rule('S', "");
+  builder.add_rule('S', "");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 static Grammar GetSophisticatedEmptyWordGrammar() {
-  Grammar grammar;
+  GrammarBuilder builder;
 
-  grammar.add_rule('S', "ABCD");
-  grammar.add_rule('A', "S");
-  grammar.add_rule('B', "A");
-  grammar.add_rule('D', "F");
-  grammar.add_rule('F', "");
-  grammar.add_rule('K', "abc");
-  grammar.add_rule('C', "CA");
-  grammar.add_rule('C', "");
+  builder.add_rule('S', "ABCD");
+  builder.add_rule('A', "S");
+  builder.add_rule('B', "A");
+  builder.add_rule('D', "F");
+  builder.add_rule('F', "");
+  builder.add_rule('K', "abc");
+  builder.add_rule('C', "CA");
+  builder.add_rule('C', "");
 
-  return grammar;
+  return builder.get_grammar();
 }
 
 const auto test_grammars = [] {
   // name / grammar / acceptable / unacceptable
-  std::vector<std::tuple<const char*, Grammar, std::vector<const char*>,
-                         std::vector<const char*>>>
-      tests;
+  std::vector<TestGrammarT> tests;
 
   // clang-format off
   tests.emplace_back(

@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+
 #include "Grammar.h"
 
 template <typename T>
