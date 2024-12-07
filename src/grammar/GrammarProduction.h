@@ -4,6 +4,8 @@
 #include <string_view>
 #include <variant>
 
+#include "helpers/TupleHasher.h"
+
 class NonTerminal {
   static size_t id_counter;
   size_t id_;
@@ -136,11 +138,23 @@ class GrammarProductionResult {
       return access_nonterminal().as_number();
     }
 
+    size_t hash() const {
+      return tuple_hasher_fn(&*list_iterator_, part_iterator_);
+    }
+
     friend GrammarProductionResult;
   };
 
   const_iterator cbegin() const { return const_iterator{parts_.cbegin(), 0}; }
   const_iterator cend() const { return const_iterator{parts_.cend(), 0}; }
+};
+
+template <>
+struct std::hash<GrammarProductionResult::const_iterator> {
+  size_t operator()(
+      const GrammarProductionResult::const_iterator& itr) const noexcept {
+    return itr.hash();
+  }
 };
 
 inline GrammarProductionResult operator+(GrammarProductionResult left,

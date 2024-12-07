@@ -28,7 +28,7 @@ bool EarleyParser::predict(std::string_view word) const {
   SituationsContainer curr_added;
 
   Situation start(grammar_.get_start(),
-                  grammar_.get_start_productions().front(), 0);
+                  grammar_.get_start_productions().front(), 0, 0);
   emplace_situation(curr_added, start);
 
   for (size_t i = 0; i <= size; ++i) {
@@ -37,6 +37,12 @@ bool EarleyParser::predict(std::string_view word) const {
     }
 
     while (!curr_added.empty()) {
+      for (const auto& [symbol, added_situations] : curr_added) {
+        for (const Situation& situation : added_situations) {
+          situations[i][symbol].emplace(situation);
+        }
+      }
+
       std::swap(curr_added, prev_added);
       curr_added.clear();
 
@@ -46,26 +52,24 @@ bool EarleyParser::predict(std::string_view word) const {
                                           situation.from.as_number());
         for (Situation parent_situation : parents) {
           ++parent_situation.dot_position;
-          emplace_situation(curr_added, parent_situation);
+          emplace_situation_if_new(situations[i], curr_added, parent_situation);
         }
       }
 
       // predict
-      for (NonTerminal non_terminal :
-           grammar_.get_productions() | std::views::keys) {
+      for (const auto& [non_terminal, productions] :
+           grammar_.get_productions()) {
         if (!prev_added.contains(non_terminal.as_number())) {
           continue;
         }
 
-        for (const GrammarProductionResult& production :
-             grammar_.get_productions_for(non_terminal)) {
-          Situation new_situation(non_terminal, production, i);
-          emplace_situation(curr_added, new_situation);
-        }
-      }
+        for (size_t production_id = 0; production_id < productions.size();
+             ++production_id) {
+          Situation new_situation(non_terminal, productions[production_id], i,
+                                  production_id);
 
-      for (const auto& [symbol, situation] : curr_added) {
-        situations[i].emplace(symbol, situation);
+          emplace_situation_if_new(situations[i], curr_added, new_situation);
+        }
       }
     }
   }

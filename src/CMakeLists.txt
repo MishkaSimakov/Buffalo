@@ -1,4 +1,5 @@
-add_library(Buffalo INTERFACE)
+add_library(Buffalo INTERFACE
+        helpers/TupleHasher.h)
 
 target_sources(Buffalo PUBLIC
         grammar/Grammar.cpp
@@ -12,4 +13,4 @@ target_sources(Buffalo PUBLIC
         grammar/GrammarBuilder.h
 )
 
-target_include_directories(Buffalo INTERFACE . earley grammar)
+target_include_directories(Buffalo INTERFACE . earley grammar helpers)

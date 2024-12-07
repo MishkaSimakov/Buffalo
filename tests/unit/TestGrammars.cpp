@@ -92,7 +92,7 @@ const auto test_grammars = [] {
   );
 
   tests.emplace_back(
-    "palindromes palindromes",
+    "palindromes",
     GetPalindromesGrammar(),
     std::vector{"", "a", "b", "aa", "bb", "aba", "aaa", "bbb", "bab", "abba", "baab", "bbbb", "aaaa", "aabbabbabbaa"},
     std::vector{"ab", "ba", "baa", "aab", "bba", "abb", "abab", "aabbabbabbab", "babbabbabbaa", "c", "ac", "aac", "aca"}

@@ -1,8 +1,11 @@
 #pragma once
+#include <iostream>
 #include <ranges>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "Parser.h"
+#include "helpers/TupleHasher.h"
 
 class EarleyParser {
   struct Situation {
@@ -10,16 +13,29 @@ class EarleyParser {
     GrammarProductionResult::const_iterator dot_position;
     const GrammarProductionResult::const_iterator end_position;
     size_t prev_position;
+    size_t production_index;
 
     Situation(NonTerminal left, const GrammarProductionResult& right,
-              size_t prev_position)
+              size_t prev_position, size_t production_index)
         : from(left),
           dot_position(right.cbegin()),
           end_position(right.cend()),
-          prev_position(prev_position) {}
+          prev_position(prev_position),
+          production_index(production_index) {}
+
+    bool operator==(const Situation& other) const = default;
   };
 
-  using SituationsContainer = std::unordered_multimap<ssize_t, Situation>;
+  struct SituationHasher {
+    size_t operator()(const Situation& situation) const {
+      return tuple_hasher_fn(situation.from, situation.dot_position,
+                             situation.prev_position,
+                             situation.production_index);
+    }
+  };
+
+  using SituationsSet = std::unordered_set<Situation, SituationHasher>;
+  using SituationsContainer = std::unordered_map<ssize_t, SituationsSet>;
 
   Grammar grammar_;
 
@@ -30,17 +46,36 @@ class EarleyParser {
 
   static auto extract_situations(const SituationsContainer& container,
                                  ssize_t next_symbol) {
-    auto [beg, end] = container.equal_range(next_symbol);
-    return std::ranges::subrange{beg, end} | std::views::values;
+    auto itr = container.find(next_symbol);
+
+    if (itr == container.end()) {
+      return std::ranges::subrange<SituationsSet::iterator>{};
+    }
+
+    return std::ranges::subrange{itr->second.begin(), itr->second.end()};
   }
 
-  static auto emplace_situation(SituationsContainer& container,
+  static void emplace_situation(SituationsContainer& container,
                                 Situation situation) {
-    if (situation.dot_position != situation.end_position) {
-      container.emplace(situation.dot_position.as_number(), situation);
-    } else {
-      container.emplace(0, situation);
+    ssize_t next_symbol = situation.dot_position == situation.end_position
+                              ? 0
+                              : situation.dot_position.as_number();
+
+    container[next_symbol].emplace(situation);
+  }
+
+  static void emplace_situation_if_new(SituationsContainer& situations,
+                                       SituationsContainer& destination,
+                                       Situation situation) {
+    ssize_t next_symbol = situation.dot_position == situation.end_position
+                              ? 0
+                              : situation.dot_position.as_number();
+
+    if (situations[next_symbol].contains(situation)) {
+      return;
     }
+
+    destination[next_symbol].emplace(situation);
   }
 
  public:
