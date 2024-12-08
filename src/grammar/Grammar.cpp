@@ -1,13 +1,6 @@
 #include "Grammar.h"
 
-#include <iostream>
 #include <unordered_set>
-
-// void Grammar::extend() {
-//   NonTerminal new_start;
-//   add_rule(new_start, start_);
-//   start_ = new_start;
-// }
 
 void Grammar::erase_unlisted(const std::unordered_set<NonTerminal>& keep) {
   std::erase_if(productions_, [&keep](const auto& pair) {

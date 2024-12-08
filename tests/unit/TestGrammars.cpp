@@ -2,7 +2,8 @@
 
 #include "GrammarBuilder.h"
 
-static Grammar GetEvenPalindromesGrammar() {
+namespace {
+Grammar GetEvenPalindromesGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "aSa");
@@ -12,7 +13,7 @@ static Grammar GetEvenPalindromesGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetPalindromesGrammar() {
+Grammar GetPalindromesGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "aSa");
@@ -24,7 +25,7 @@ static Grammar GetPalindromesGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetParenthesesGrammar() {
+Grammar GetParenthesesGrammar() {
   GrammarBuilder builder;
 
   // here a is (, b is )
@@ -35,7 +36,7 @@ static Grammar GetParenthesesGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetMatchingPairsGrammar() {
+Grammar GetMatchingPairsGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "aSb");
@@ -44,7 +45,7 @@ static Grammar GetMatchingPairsGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetMatchingPairsWithEmptyGrammar() {
+Grammar GetMatchingPairsWithEmptyGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "aSb");
@@ -54,9 +55,20 @@ static Grammar GetMatchingPairsWithEmptyGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetEmptyGrammar() { return {}; }
+Grammar GetEvenCountOfBGrammar() {
+  GrammarBuilder builder;
 
-static Grammar GetEmptyWordGrammar() {
+  builder.add_rule('S', "AB");
+  builder.add_rule('A', "SB");
+  builder.add_rule('A', "B");
+  builder.add_rule('B', "b");
+
+  return builder.get_grammar();
+}
+
+Grammar GetEmptyGrammar() { return {}; }
+
+Grammar GetEmptyWordGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "");
@@ -64,7 +76,7 @@ static Grammar GetEmptyWordGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetSophisticatedEmptyWordGrammar() {
+Grammar GetSophisticatedEmptyWordGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "ABCD");
@@ -80,7 +92,7 @@ static Grammar GetSophisticatedEmptyWordGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetAkhcheckGrammar() {
+Grammar GetAkhcheckGrammar() {
   GrammarBuilder builder;
 
   builder.add_rule('S', "aSbS");
@@ -89,7 +101,7 @@ static Grammar GetAkhcheckGrammar() {
   return builder.get_grammar();
 }
 
-static Grammar GetBuffaloGrammar() {
+Grammar GetBuffaloGrammar() {
   Grammar grammar;
 
   NonTerminal start;
@@ -101,7 +113,7 @@ static Grammar GetBuffaloGrammar() {
   return grammar;
 }
 
-static Grammar GetLoremIpsumGrammar() {
+Grammar GetLoremIpsumGrammar() {
   Grammar grammar;
 
   NonTerminal text;
@@ -144,7 +156,7 @@ static Grammar GetLoremIpsumGrammar() {
   return grammar;
 }
 
-static Grammar GetGrammarWithEpsilonProducing() {
+Grammar GetGrammarWithEpsilonProducing() {
   Grammar grammar;
 
   NonTerminal start;
@@ -178,6 +190,7 @@ static Grammar GetGrammarWithEpsilonProducing() {
 
   return grammar;
 }
+}  // namespace
 
 const auto test_grammars = [] {
   // name / grammar / acceptable / unacceptable
@@ -210,6 +223,13 @@ const auto test_grammars = [] {
     GetMatchingPairsGrammar(),
     std::vector{"ab", "aabb", "aaabbb", "aaaabbbb", "aaaaaaaaaaaaabbbbbbbbbbbbb"},
     std::vector{"", "a", "b", "aa", "bb", "abb", "aab", "aaaaaaaaaaaaabbbbbbbbbbbb", "aaaaaaaaaaaabbbbbbbbbbbbb"}
+  );
+
+  tests.emplace_back(
+    "even count of b (b^(2 * n), n > 0)",
+    GetEvenCountOfBGrammar(),
+    std::vector{"bb", "bbbb", "bbbbbb", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+    std::vector{"", "b", "ab", "bbb", "bbbbb", "abb", "bba", "bbabb"}
   );
 
   tests.emplace_back(

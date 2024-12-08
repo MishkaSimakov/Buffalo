@@ -91,6 +91,7 @@ bool EarleyParser::predict(std::string_view word) const {
 
   return std::ranges::any_of(extract_situations(situations[size], 0),
                              [this](const Situation& situation) {
-                               return situation.from == grammar_.get_start();
+                               return situation.from == grammar_.get_start() &&
+                                      situation.prev_position == 0;
                              });
 }

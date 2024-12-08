@@ -2,7 +2,7 @@
 
 #include "Grammar.h"
 
-const static std::pair<Grammar, std::vector<NonTerminal>> test_grammar = [] {
+const std::pair<Grammar, std::vector<NonTerminal>> test_grammar = [] {
   Grammar grammar;
   NonTerminal start;
   NonTerminal the_void;

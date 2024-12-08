@@ -36,7 +36,7 @@ std::pair<char, std::string> ParseProduction(std::string production) {
   return {non_terminal, std::move(production_result)};
 }
 
-int main() {
+Grammar ReadGrammar() {
   size_t non_terminals_count;
   size_t terminals_count;
   size_t productions_count;
@@ -93,7 +93,12 @@ int main() {
     throw std::runtime_error(Strings::invalid_start_non_terminal);
   }
 
-  auto parser = EarleyParser::fit(builder.get_grammar(start_non_terminal));
+  return builder.get_grammar(start_non_terminal);
+}
+
+int main() {
+  auto grammar = ReadGrammar();
+  auto parser = EarleyParser::fit(std::move(grammar));
 
   size_t words_count;
   std::cin >> words_count;
