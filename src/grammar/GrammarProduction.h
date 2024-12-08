@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <list>
 #include <string_view>
 #include <variant>
@@ -55,6 +56,8 @@ class GrammarProductionResult {
   static GrammarProductionResult empty() { return {}; }
 
   const std::list<PartT>& get_parts() const { return parts_; }
+
+  void add_part(const PartT& part) { parts_.emplace_back(part); }
 
   GrammarProductionResult& operator+=(GrammarProductionResult other) {
     parts_.splice(parts_.end(), std::move(other.parts_));
@@ -144,6 +147,14 @@ class GrammarProductionResult {
 
     friend GrammarProductionResult;
   };
+
+  bool is_terminal() const {
+    return std::ranges::all_of(parts_, [](const PartT& part) {
+      return part.index() == cTerminalIndex;
+    });
+  }
+
+  bool is_empty() const { return parts_.empty(); }
 
   const_iterator cbegin() const { return const_iterator{parts_.cbegin(), 0}; }
   const_iterator cend() const { return const_iterator{parts_.cend(), 0}; }

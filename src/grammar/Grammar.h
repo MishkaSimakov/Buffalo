@@ -1,7 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <ranges>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "GrammarProduction.h"
@@ -11,6 +13,16 @@ class Grammar {
   std::unordered_map<NonTerminal, std::vector<GrammarProductionResult>>
       productions_;
   NonTerminal start_;
+
+  void erase_unlisted(const std::unordered_set<NonTerminal>& keep);
+
+  void remove_non_producing();
+  void remove_unreachable();
+
+  void remove_epsilon_producing();
+  static std::list<GrammarProductionResult> generate_reduced_productions(
+      const GrammarProductionResult& production,
+      const std::unordered_set<NonTerminal>& epsilon_producing);
 
  public:
   const auto& get_productions() const { return productions_; }
@@ -30,9 +42,10 @@ class Grammar {
   void set_start(NonTerminal new_start) { start_ = new_start; }
   auto get_start_productions() const { return get_productions_for(start_); }
 
-  void extend();
-  void remove_epsilon_rules();
-  void remove_unreachable();
+  // 1. remove non-producing non-terminals
+  // 2. remove unreachable non-terminals
+  // 3. remove epsilon-producing non-terminals
+  void optimize();
 
   void add_rule(NonTerminal from, GrammarProductionResult to);
 };

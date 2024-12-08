@@ -44,6 +44,16 @@ class EarleyParser {
   static void scan_action(const SituationsContainer& previous,
                           SituationsContainer& next, char symbol);
 
+  void predict_action(const SituationsContainer& previously_added,
+                       SituationsContainer& currently_added,
+                       const std::vector<SituationsContainer>& all_situations,
+                       size_t index) const;
+
+  void complete_action(const SituationsContainer& previously_added,
+                       SituationsContainer& currently_added,
+                       const std::vector<SituationsContainer>& all_situations,
+                       size_t index) const;
+
   static auto extract_situations(const SituationsContainer& container,
                                  ssize_t next_symbol) {
     auto itr = container.find(next_symbol);
@@ -64,14 +74,15 @@ class EarleyParser {
     container[next_symbol].emplace(situation);
   }
 
-  static void emplace_situation_if_new(SituationsContainer& situations,
+  static void emplace_situation_if_new(const SituationsContainer& situations,
                                        SituationsContainer& destination,
                                        Situation situation) {
     ssize_t next_symbol = situation.dot_position == situation.end_position
                               ? 0
                               : situation.dot_position.as_number();
 
-    if (situations[next_symbol].contains(situation)) {
+    auto itr = situations.find(next_symbol);
+    if (itr != situations.end() && itr->second.contains(situation)) {
       return;
     }
 

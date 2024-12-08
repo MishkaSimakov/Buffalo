@@ -10,15 +10,50 @@ void EarleyParser::scan_action(const SituationsContainer& previous,
   }
 }
 
+void EarleyParser::predict_action(
+    const SituationsContainer& previously_added,
+    SituationsContainer& currently_added,
+    const std::vector<SituationsContainer>& all_situations,
+    size_t index) const {
+  for (const auto& [non_terminal, productions] : grammar_.get_productions()) {
+    if (!previously_added.contains(non_terminal.as_number())) {
+      continue;
+    }
+
+    for (size_t production_id = 0; production_id < productions.size();
+         ++production_id) {
+      Situation new_situation(non_terminal, productions[production_id], index,
+                              production_id);
+
+      emplace_situation_if_new(all_situations[index], currently_added,
+                               new_situation);
+    }
+  }
+}
+
+void EarleyParser::complete_action(
+    const SituationsContainer& previously_added,
+    SituationsContainer& currently_added,
+    const std::vector<SituationsContainer>& all_situations,
+    size_t index) const {
+  for (const Situation& situation : extract_situations(previously_added, 0)) {
+    auto parents = extract_situations(all_situations[situation.prev_position],
+                                      situation.from.as_number());
+    for (Situation parent_situation : parents) {
+      ++parent_situation.dot_position;
+      emplace_situation_if_new(all_situations[index], currently_added,
+                               parent_situation);
+    }
+  }
+}
+
 EarleyParser EarleyParser::fit(Grammar grammar) {
-  grammar.extend();
+  grammar.optimize();
   EarleyParser parser(std::move(grammar));
   return parser;
 }
 
 bool EarleyParser::predict(std::string_view word) const {
-  // TODO: empty word!!!
-
   size_t size = word.size();
 
   std::vector<SituationsContainer> situations(size + 1);
@@ -27,9 +62,11 @@ bool EarleyParser::predict(std::string_view word) const {
   SituationsContainer prev_added;
   SituationsContainer curr_added;
 
-  Situation start(grammar_.get_start(),
-                  grammar_.get_start_productions().front(), 0, 0);
-  emplace_situation(curr_added, start);
+  auto start_productions = grammar_.get_start_productions();
+  for (size_t i = 0; i < start_productions.size(); ++i) {
+    Situation start(grammar_.get_start(), start_productions[i], 0, i);
+    emplace_situation(curr_added, start);
+  }
 
   for (size_t i = 0; i <= size; ++i) {
     if (i != 0) {
@@ -46,31 +83,9 @@ bool EarleyParser::predict(std::string_view word) const {
       std::swap(curr_added, prev_added);
       curr_added.clear();
 
-      // complete
-      for (const Situation& situation : extract_situations(prev_added, 0)) {
-        auto parents = extract_situations(situations[situation.prev_position],
-                                          situation.from.as_number());
-        for (Situation parent_situation : parents) {
-          ++parent_situation.dot_position;
-          emplace_situation_if_new(situations[i], curr_added, parent_situation);
-        }
-      }
+      complete_action(prev_added, curr_added, situations, i);
 
-      // predict
-      for (const auto& [non_terminal, productions] :
-           grammar_.get_productions()) {
-        if (!prev_added.contains(non_terminal.as_number())) {
-          continue;
-        }
-
-        for (size_t production_id = 0; production_id < productions.size();
-             ++production_id) {
-          Situation new_situation(non_terminal, productions[production_id], i,
-                                  production_id);
-
-          emplace_situation_if_new(situations[i], curr_added, new_situation);
-        }
-      }
+      predict_action(prev_added, curr_added, situations, i);
     }
   }
 

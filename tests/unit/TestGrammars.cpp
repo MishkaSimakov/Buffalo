@@ -69,6 +69,7 @@ static Grammar GetSophisticatedEmptyWordGrammar() {
 
   builder.add_rule('S', "ABCD");
   builder.add_rule('A', "S");
+  builder.add_rule('A', "");
   builder.add_rule('B', "A");
   builder.add_rule('D', "F");
   builder.add_rule('F', "");
