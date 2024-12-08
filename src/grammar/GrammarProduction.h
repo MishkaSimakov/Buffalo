@@ -4,6 +4,7 @@
 #include <list>
 #include <string_view>
 #include <variant>
+#include <string>
 
 #include "helpers/TupleHasher.h"
 
@@ -29,10 +30,10 @@ struct std::hash<NonTerminal> {
 };
 
 class Terminal {
-  std::string_view string_;
+  std::string string_;
 
  public:
-  explicit Terminal(std::string_view string) : string_(string) {}
+  explicit Terminal(std::string string) : string_(std::move(string)) {}
 
   std::string_view get_string() const { return string_; }
 
@@ -50,7 +51,7 @@ class GrammarProductionResult {
 
  public:
   GrammarProductionResult() = default;
-  GrammarProductionResult(Terminal part) : parts_({part}) {}
+  GrammarProductionResult(Terminal part) : parts_({std::move(part)}) {}
   GrammarProductionResult(NonTerminal part) : parts_({part}) {}
 
   static GrammarProductionResult empty() { return {}; }

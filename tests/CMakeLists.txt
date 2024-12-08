@@ -7,6 +7,7 @@ add_executable(
         unit/EarleyParserTests.cpp
         unit/TestGrammars.h
         unit/GrammarBuilderTests.cpp
+        unit/GrammarTests.cpp
 )
 
 target_link_libraries(Tests PUBLIC GTest::gtest_main fmt::fmt Buffalo)

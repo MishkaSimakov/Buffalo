@@ -8,7 +8,7 @@
 class GrammarBuilder {
   static constexpr char cStartNonTerminal = 'S';
 
-  std::vector<std::pair<char, std::string_view>> productions_;
+  std::vector<std::pair<char, std::string>> productions_;
 
   static bool is_valid_terminal(char symbol);
   static bool is_valid_non_terminal(char symbol);
@@ -17,7 +17,7 @@ class GrammarBuilder {
       std::unordered_map<char, NonTerminal>& non_terminals);
 
  public:
-  void add_rule(char from, std::string_view to);
+  void add_rule(char from, std::string to);
 
-  Grammar get_grammar() const;
+  Grammar get_grammar(char start = cStartNonTerminal) const;
 };

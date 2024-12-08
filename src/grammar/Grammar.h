@@ -16,10 +16,6 @@ class Grammar {
 
   void erase_unlisted(const std::unordered_set<NonTerminal>& keep);
 
-  void remove_non_producing();
-  void remove_unreachable();
-
-  void remove_epsilon_producing();
   static std::list<GrammarProductionResult> generate_reduced_productions(
       const GrammarProductionResult& production,
       const std::unordered_set<NonTerminal>& epsilon_producing);
@@ -46,6 +42,10 @@ class Grammar {
   // 2. remove unreachable non-terminals
   // 3. remove epsilon-producing non-terminals
   void optimize();
+
+  void remove_non_producing();
+  void remove_unreachable();
+  void remove_epsilon_producing();
 
   void add_rule(NonTerminal from, GrammarProductionResult to);
 };

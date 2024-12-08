@@ -80,6 +80,105 @@ static Grammar GetSophisticatedEmptyWordGrammar() {
   return builder.get_grammar();
 }
 
+static Grammar GetAkhcheckGrammar() {
+  GrammarBuilder builder;
+
+  builder.add_rule('S', "aSbS");
+  builder.add_rule('S', "");
+
+  return builder.get_grammar();
+}
+
+static Grammar GetBuffaloGrammar() {
+  Grammar grammar;
+
+  NonTerminal start;
+  grammar.set_start(start);
+
+  grammar.add_rule(start, start + Terminal{" "} + start);
+  grammar.add_rule(start, Terminal{"buffalo"});
+
+  return grammar;
+}
+
+static Grammar GetLoremIpsumGrammar() {
+  Grammar grammar;
+
+  NonTerminal text;
+  NonTerminal sentence_with_dot;
+  NonTerminal sentence;
+  NonTerminal word;
+
+  grammar.set_start(text);
+
+  grammar.add_rule(text, text + Terminal{" "} + sentence_with_dot);
+  grammar.add_rule(text, sentence_with_dot);
+
+  grammar.add_rule(sentence_with_dot, sentence + Terminal{"."});
+
+  grammar.add_rule(sentence, sentence + Terminal{" "} + word);
+  grammar.add_rule(sentence, word);
+
+  std::vector words = {
+      "ad",         "sed",          "consectetur", "duis",
+      "esse",       "deserunt",     "occaecat",    "dolore",
+      "incididunt", "enim",         "ex",          "cupidatat",
+      "commodo",    "consequat",    "pariatur",    "proident",
+      "anim",       "aute",         "labore",      "excepteur",
+      "veniam",     "nisi",         "amet",        "eu",
+      "do",         "culpa",        "quis",        "cillum",
+      "laboris",    "magna",        "lorem",       "ea",
+      "ipsum",      "minim",        "irure",       "reprehenderit",
+      "fugiat",     "exercitation", "velit",       "officia",
+      "adipiscing", "dolor",        "et",          "sit",
+      "nostrud",    "qui",          "mollit",      "voluptate",
+      "ut",         "ullamco",      "sint",        "non",
+      "id",         "est",          "aliquip",     "laborum",
+      "nulla",      "tempor",       "elit",        "eiusmod",
+      "aliqua",     "sunt",         "in"};
+
+  for (const char* lorem_word : words) {
+    grammar.add_rule(word, Terminal{lorem_word});
+  }
+
+  return grammar;
+}
+
+static Grammar GetGrammarWithEpsilonProducing() {
+  Grammar grammar;
+
+  NonTerminal start;
+  NonTerminal a_or_nothing;
+  NonTerminal b;
+  NonTerminal c_or_nothing;
+  NonTerminal d;
+  NonTerminal e_or_nothing;
+  NonTerminal e;
+  NonTerminal nothing;
+
+  grammar.set_start(start);
+
+  grammar.add_rule(start, a_or_nothing + b + c_or_nothing + d + e_or_nothing);
+
+  grammar.add_rule(a_or_nothing, Terminal{"a"});
+  grammar.add_rule(a_or_nothing, GrammarProductionResult::empty());
+
+  grammar.add_rule(b, Terminal{"b"});
+
+  grammar.add_rule(c_or_nothing, Terminal{"c"});
+  grammar.add_rule(c_or_nothing, GrammarProductionResult::empty());
+
+  grammar.add_rule(d, Terminal{"d"});
+
+  grammar.add_rule(e_or_nothing, e);
+  grammar.add_rule(e_or_nothing, nothing);
+
+  grammar.add_rule(e, Terminal{"e"});
+  grammar.add_rule(nothing, GrammarProductionResult::empty());
+
+  return grammar;
+}
+
 const auto test_grammars = [] {
   // name / grammar / acceptable / unacceptable
   std::vector<TestGrammarT> tests;
@@ -139,6 +238,34 @@ const auto test_grammars = [] {
     GetSophisticatedEmptyWordGrammar(),
     std::vector{""},
     std::vector{"a", "b", "ab", "aa", "ba", "bb", "abc", "aaabbbbaababaababsdff", "d"}
+  );
+
+  tests.emplace_back(
+    "grammar from akhcheck (parentheses)",
+    GetAkhcheckGrammar(),
+    std::vector{"aababb", "", "ab", "abab", "aabb", "aabbab"},
+    std::vector{"aabbba", "a", "b", "aa", "bb", "ba", "aba"}
+  );
+
+  tests.emplace_back(
+    "buffalo grammar",
+    GetBuffaloGrammar(),
+    std::vector{"buffalo", "buffalo buffalo", "buffalo buffalo buffalo", "buffalo buffalo buffalo", "buffalo buffalo buffalo buffalo", "buffalo buffalo buffalo buffalo buffalo buffalo buffalo buffalo"},
+    std::vector{"", "buffalo ", " buffalo", " ", "buffal", "uffalo", "buffalo buffal", "buffa lo"}
+  );
+
+  tests.emplace_back(
+    "lorem ipsum",
+    GetLoremIpsumGrammar(),
+    std::vector{"lorem.", "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum.", "duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.", "lorem ipsum dolor."},
+    std::vector{"", "lorem", ". lorem.", "lore.", " ", " ."}
+  );
+
+  tests.emplace_back(
+    "epsilon_producing grammar",
+    GetGrammarWithEpsilonProducing(),
+    std::vector{"abcde", "abcd", "abde", "abd", "bcde", "bcd", "bde", "bd"},
+    std::vector{"", "b", "d", "bc", "be", "abce", "acde", "abcdef", "aabcde", "abcdee", "abbcde", "abcdea"}
   );
 
   // clang-format on

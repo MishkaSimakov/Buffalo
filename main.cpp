@@ -4,40 +4,108 @@
 #include "Grammar.h"
 #include "GrammarBuilder.h"
 
-using std::cout, std::endl;
+namespace Strings {
+const char* productions_separator = "->";
+const char* invalid_production_syntax =
+    "Every production must look like X -> seq, where X is one non-terminal "
+    "and seq is sequence of terminals and non-termianls.";
 
+const char* invalid_production_left_part =
+    "In the left part of production must be a valid non-terminal.";
+const char* invalid_production_right_part =
+    "In the right part of production must be a sequence of valid "
+    "terminals and non-terminals.";
 
-static Grammar GetSophisticatedEmptyWordGrammar() {
-  GrammarBuilder builder;
+const char* invalid_start_non_terminal =
+    "Start non-terminal must be a valid non-terminal.";
+}  // namespace Strings
 
-  builder.add_rule('S', "ABCD");
-  builder.add_rule('A', "S");
-  builder.add_rule('A', "");
-  builder.add_rule('B', "A");
-  builder.add_rule('D', "F");
-  builder.add_rule('F', "");
-  builder.add_rule('K', "abc");
-  builder.add_rule('C', "CA");
-  builder.add_rule('C', "");
+std::pair<char, std::string> ParseProduction(std::string production) {
+  std::erase_if(production,
+                [](char symbol) { return std::isspace(symbol) != 0; });
 
-  return builder.get_grammar();
-}
+  // separate string by ->
+  size_t position = production.find(Strings::productions_separator);
+  if (position != 1) {
+    throw std::runtime_error(Strings::invalid_production_syntax);
+  }
 
-static Grammar GetEvenPalindromesGrammar() {
-  GrammarBuilder builder;
+  char non_terminal = production[0];
+  std::string production_result = production.substr(3);
 
-  builder.add_rule('S', "aSa");
-  builder.add_rule('S', "bSb");
-  builder.add_rule('S', "");
-
-  return builder.get_grammar();
+  return {non_terminal, std::move(production_result)};
 }
 
 int main() {
-  auto grammar = GetSophisticatedEmptyWordGrammar();
+  size_t non_terminals_count;
+  size_t terminals_count;
+  size_t productions_count;
 
-  auto parser = EarleyParser::fit(grammar);
+  std::cin >> non_terminals_count >> terminals_count >> productions_count;
 
+  std::unordered_set<char> non_terminals;
+  for (size_t i = 0; i < non_terminals_count; ++i) {
+    char symbol;
+    std::cin >> symbol;
 
-  cout << parser.predict("") << endl;
+    non_terminals.emplace(symbol);
+  }
+
+  std::unordered_set<char> terminals;
+  for (size_t i = 0; i < terminals_count; ++i) {
+    char symbol;
+    std::cin >> symbol;
+
+    terminals.emplace(symbol);
+  }
+
+  std::string production;
+
+  // skip current line
+  std::getline(std::cin, production);
+
+  GrammarBuilder builder;
+  for (size_t i = 0; i < productions_count; ++i) {
+    std::getline(std::cin, production);
+
+    auto [left, right] = ParseProduction(std::move(production));
+
+    if (!non_terminals.contains(left)) {
+      throw std::runtime_error(Strings::invalid_production_left_part);
+    }
+
+    bool is_right_valid =
+        std::ranges::all_of(right, [&non_terminals, &terminals](char symbol) {
+          return terminals.contains(symbol) || non_terminals.contains(symbol);
+        });
+
+    if (!is_right_valid) {
+      throw std::runtime_error(Strings::invalid_production_right_part);
+    }
+
+    builder.add_rule(left, right);
+  }
+
+  char start_non_terminal;
+  std::cin >> start_non_terminal;
+
+  if (!non_terminals.contains(start_non_terminal)) {
+    throw std::runtime_error(Strings::invalid_start_non_terminal);
+  }
+
+  auto parser = EarleyParser::fit(builder.get_grammar(start_non_terminal));
+
+  size_t words_count;
+  std::cin >> words_count;
+
+  std::string word;
+  // skip current line
+  std::getline(std::cin, word);
+
+  for (size_t i = 0; i < words_count; ++i) {
+    std::getline(std::cin, word);
+
+    bool correct = parser.predict(std::move(word));
+    std::cout << (correct ? "YES" : "NO") << std::endl;
+  }
 }

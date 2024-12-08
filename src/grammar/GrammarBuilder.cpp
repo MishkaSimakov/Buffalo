@@ -37,7 +37,7 @@ GrammarProductionResult GrammarBuilder::string_to_production(
   return result;
 }
 
-void GrammarBuilder::add_rule(char from, std::string_view to) {
+void GrammarBuilder::add_rule(char from, std::string to) {
   // check rule validity
   if (!is_valid_non_terminal(from)) {
     throw std::runtime_error(
@@ -52,19 +52,19 @@ void GrammarBuilder::add_rule(char from, std::string_view to) {
     }
   }
 
-  productions_.emplace_back(from, to);
+  productions_.emplace_back(from, std::move(to));
 }
 
-Grammar GrammarBuilder::get_grammar() const {
+Grammar GrammarBuilder::get_grammar(char start) const {
   Grammar result;
   std::unordered_map<char, NonTerminal> non_terminals;
 
-  for (auto [from, to] : productions_) {
+  for (const auto& [from, to] : productions_) {
     auto production_result = string_to_production(to, non_terminals);
     result.add_rule(non_terminals[from], production_result);
   }
 
-  result.set_start(non_terminals[cStartNonTerminal]);
+  result.set_start(non_terminals[start]);
 
   return result;
 }

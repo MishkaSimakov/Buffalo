@@ -119,7 +119,7 @@ void Grammar::remove_epsilon_producing() {
         bool is_epsilon_producing = std::ranges::all_of(
             production.get_parts(), [&epsilon_producing](const PartT& part) {
               if (std::holds_alternative<Terminal>(part)) {
-                return true;
+                return std::get<Terminal>(part).get_string().empty();
               }
 
               return epsilon_producing.contains(std::get<NonTerminal>(part));
