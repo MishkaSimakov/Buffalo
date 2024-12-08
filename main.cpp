@@ -111,6 +111,6 @@ int main() {
     std::getline(std::cin, word);
 
     bool correct = parser.predict(std::move(word));
-    std::cout << (correct ? "YES" : "NO") << std::endl;
+    std::cout << (correct ? "Yes" : "No") << std::endl;
   }
 }
