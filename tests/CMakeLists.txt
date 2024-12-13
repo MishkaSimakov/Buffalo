@@ -4,10 +4,11 @@ include(GoogleTest)
 add_executable(
         Tests
         unit/TestGrammars.cpp
-        unit/EarleyParserTests.cpp
+        unit/LRParserTests.cpp
         unit/TestGrammars.h
         unit/GrammarBuilderTests.cpp
         unit/GrammarTests.cpp
+        unit/LRTableBuilderTests.cpp
 )
 
 target_link_libraries(Tests PUBLIC GTest::gtest_main fmt::fmt Buffalo)

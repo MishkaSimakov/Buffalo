@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <ranges>
 #include <unordered_map>
 #include <unordered_set>

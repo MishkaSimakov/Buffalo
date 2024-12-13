@@ -2,11 +2,11 @@
 
 #include <algorithm>
 #include <list>
+#include <string>
 #include <string_view>
 #include <variant>
-#include <string>
 
-#include "helpers/TupleHasher.h"
+#include "Hashers.h"
 
 class NonTerminal {
   static size_t id_counter;
@@ -75,6 +75,11 @@ class GrammarProductionResult {
         : list_iterator_(list_iterator), part_iterator_(part_iterator) {}
 
    public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = void;
+    using reference = void;
+    using difference_type = size_t;
+
     const_iterator operator++() {
       if (list_iterator_->index() == cNonTerminalIndex) {
         part_iterator_ = 0;
@@ -156,6 +161,19 @@ class GrammarProductionResult {
   }
 
   bool is_empty() const { return parts_.empty(); }
+
+  size_t size() const {
+    size_t result = 0;
+    for (const PartT& part: parts_) {
+      if (std::holds_alternative<Terminal>(part)) {
+        result += std::get<Terminal>(part).get_string().size();
+      } else {
+        ++result;
+      }
+    }
+
+    return result;
+  }
 
   const_iterator cbegin() const { return const_iterator{parts_.cbegin(), 0}; }
   const_iterator cend() const { return const_iterator{parts_.cend(), 0}; }

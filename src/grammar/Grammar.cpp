@@ -171,13 +171,13 @@ std::list<GrammarProductionResult> Grammar::generate_reduced_productions(
       for (GrammarProductionResult& result_production : result) {
         result_production.add_part(part);
       }
-    } else {
-      auto copy = result;
-      for (auto& result_production : result) {
-        result_production.add_part(part);
-      }
-      result.splice(result.end(), copy);
-    }
+        } else {
+          auto copy = result;
+          for (auto& result_production : result) {
+            result_production.add_part(part);
+          }
+          result.splice(result.end(), copy);
+        }
   }
 
   return result;

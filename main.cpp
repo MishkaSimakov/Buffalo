@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "EarleyParser.h"
 #include "Grammar.h"
 #include "GrammarBuilder.h"
+#include "LRParser.h"
 
 namespace Strings {
 const char* productions_separator = "->";
@@ -96,21 +96,53 @@ Grammar ReadGrammar() {
   return builder.get_grammar(start_non_terminal);
 }
 
+Grammar GetEvenPalindromesGrammar() {
+  GrammarBuilder builder;
+
+  builder.add_rule('S', "aSa");
+  builder.add_rule('S', "bSb");
+  builder.add_rule('S', "");
+
+  return builder.get_grammar();
+}
+
 int main() {
-  auto grammar = ReadGrammar();
-  auto parser = EarleyParser::fit(std::move(grammar));
+  // auto grammar = ReadGrammar();
+  // auto parser = LRParser::fit(std::move(grammar));
+  //
+  // size_t words_count;
+  // std::cin >> words_count;
+  //
+  // std::string word;
+  // // skip current line
+  // std::getline(std::cin, word);
+  //
+  // for (size_t i = 0; i < words_count; ++i) {
+  //   std::getline(std::cin, word);
+  //
+  //   bool correct = parser.predict(std::move(word));
+  //   std::cout << (correct ? "Yes" : "No") << std::endl;
+  // }
 
-  size_t words_count;
-  std::cin >> words_count;
+  // auto grammar = GetEvenPalindromesGrammar();
+  //
+  // auto parser = LRParser::fit(grammar);
+  // std::cout << parser.predict("aaba");
 
-  std::string word;
-  // skip current line
-  std::getline(std::cin, word);
+  Grammar grammar;
+  NonTerminal start;
+  NonTerminal left;
+  NonTerminal middle;
+  NonTerminal right;
 
-  for (size_t i = 0; i < words_count; ++i) {
-    std::getline(std::cin, word);
+  grammar.add_rule(start, left + Terminal{"s"} + middle + right);
+  grammar.add_rule(left, Terminal{"a"});
+  grammar.add_rule(left, {});
+  grammar.add_rule(middle, middle + Terminal{"a"});
+  grammar.add_rule(middle, Terminal{"b"});
+  grammar.add_rule(right, Terminal{"c"});
 
-    bool correct = parser.predict(std::move(word));
-    std::cout << (correct ? "Yes" : "No") << std::endl;
-  }
+  grammar.set_start(start);
+
+  auto builder = LRParserDetails::LRTableBuilder(grammar);
 }
