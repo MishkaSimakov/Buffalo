@@ -131,15 +131,18 @@ void LRParserDetails::LRTableBuilder::build_follow_table() {
 
 void LRParserDetails::LRTableBuilder::build_states_table() {
   // building goto table
-  Position start_position(grammar_.get_start(),
-                          grammar_.get_start_productions().front());
+  State start_state;
+  for (const auto& production : grammar_.get_start_productions()) {
+    start_state.emplace(Position(grammar_.get_start(), production),
+                        std::unordered_set{cWordEndSymbol});
+  }
+  start_state = closure(start_state);
 
   // store State + it's index
   // then all states will be replaced with their indices
   std::vector<decltype(states_)::iterator> updated;
 
-  auto [start_itr, _] = states_.emplace(
-      closure({{start_position, {cWordEndSymbol}}}), StateInfo{0, {}});
+  auto [start_itr, _] = states_.emplace(start_state, StateInfo{0, {}});
   updated.emplace_back(start_itr);
 
   while (!updated.empty()) {
@@ -254,7 +257,7 @@ LRParserDetails::LRTableBuilder::LRTableBuilder(const Grammar& grammar)
   };
 
   // for (size_t i = 0; i < states_.size(); ++i) {
-  // const auto& [state, info] = *state_by_index(i);
+  //   const auto& [state, info] = *state_by_index(i);
   //   std::cout << "state #" << i << std::endl;
   //   std::cout << state << std::endl;
   //
