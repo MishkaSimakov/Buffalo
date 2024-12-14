@@ -36,6 +36,18 @@ Grammar GetParenthesesGrammar() {
   return builder.get_grammar();
 }
 
+Grammar GetAlternativeParenthesesGrammar() {
+  GrammarBuilder builder;
+
+  // here a is (, b is )
+  builder.add_rule('S', "aSbS");
+  builder.add_rule('S', "aSb");
+  builder.add_rule('S', "abS");
+  builder.add_rule('S', "ab");
+
+  return builder.get_grammar();
+}
+
 Grammar GetMatchingPairsGrammar() {
   GrammarBuilder builder;
 
@@ -109,6 +121,22 @@ Grammar GetBuffaloGrammar() {
 
   grammar.add_rule(start, start + Terminal{" "} + start);
   grammar.add_rule(start, Terminal{"buffalo"});
+
+  return grammar;
+}
+
+Grammar GetLRBuffaloGrammar() {
+  Grammar grammar;
+
+  NonTerminal start;
+  NonTerminal sentence;
+  NonTerminal buffalo;
+  grammar.set_start(start);
+
+  grammar.add_rule(start, sentence);
+  grammar.add_rule(start, buffalo);
+  grammar.add_rule(sentence, start + Terminal{" "} + buffalo);
+  grammar.add_rule(buffalo, Terminal{"buffalo"});
 
   return grammar;
 }
@@ -193,7 +221,7 @@ Grammar GetGrammarWithEpsilonProducing() {
 }  // namespace
 
 const auto test_grammars = [] {
-  // name / grammar / acceptable / unacceptable
+  // name / grammar / acceptable / unacceptable / is lr(1)
   std::vector<TestGrammarT> tests;
 
   // clang-format off
@@ -201,91 +229,120 @@ const auto test_grammars = [] {
     "even palindromes",
     GetEvenPalindromesGrammar(),
     std::vector{"", "aa", "bb", "abba", "baab", "bbbb", "aaaa", "aabbabbabbaa"},
-    std::vector{"a", "b", "ab", "ba", "aba", "abab", "bab", "aabbabbabbab", "babbabbabbaa", "c", "ac", "aac"}
+    std::vector{"a", "b", "ab", "ba", "aba", "abab", "bab", "aabbabbabbab", "babbabbabbaa", "c", "ac", "aac"},
+    false
   );
 
   tests.emplace_back(
     "palindromes",
     GetPalindromesGrammar(),
     std::vector{"", "a", "b", "aa", "bb", "aba", "aaa", "bbb", "bab", "abba", "baab", "bbbb", "aaaa", "aabbabbabbaa"},
-    std::vector{"ab", "ba", "baa", "aab", "bba", "abb", "abab", "aabbabbabbab", "babbabbabbaa", "c", "ac", "aac", "aca"}
+    std::vector{"ab", "ba", "baa", "aab", "bba", "abb", "abab", "aabbabbabbab", "babbabbabbaa", "c", "ac", "aac", "aca"},
+    false
   );
 
   tests.emplace_back(
     "parentheses",
     GetParenthesesGrammar(),
     std::vector{"ab", "abab", "aabb", "abaabb", "aababb", "aaabbabb", "aaabbabbaaabbabbaaabbabb"},
-    std::vector{"", "a", "b", "aababbbabb", "aba", "bab"}
+    std::vector{"", "a", "b", "aababbbabb", "aba", "bab"},
+    false
+  );
+
+  tests.emplace_back(
+    "alternative parentheses",
+    GetAlternativeParenthesesGrammar(),
+    std::vector{"ab", "abab", "aabb", "abaabb", "aababb", "aaabbabb", "aaabbabbaaabbabbaaabbabb"},
+    std::vector{"", "a", "b", "aababbbabb", "aba", "bab"},
+    true
   );
 
   tests.emplace_back(
     "matching pairs (a^n b^n, n > 0)",
     GetMatchingPairsGrammar(),
     std::vector{"ab", "aabb", "aaabbb", "aaaabbbb", "aaaaaaaaaaaaabbbbbbbbbbbbb"},
-    std::vector{"", "a", "b", "aa", "bb", "abb", "aab", "aaaaaaaaaaaaabbbbbbbbbbbb", "aaaaaaaaaaaabbbbbbbbbbbbb"}
+    std::vector{"", "a", "b", "aa", "bb", "abb", "aab", "aaaaaaaaaaaaabbbbbbbbbbbb", "aaaaaaaaaaaabbbbbbbbbbbbb"},
+    true
   );
 
   tests.emplace_back(
     "even count of b (b^(2 * n), n > 0)",
     GetEvenCountOfBGrammar(),
     std::vector{"bb", "bbbb", "bbbbbb", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-    std::vector{"", "b", "ab", "bbb", "bbbbb", "abb", "bba", "bbabb"}
+    std::vector{"", "b", "ab", "bbb", "bbbbb", "abb", "bba", "bbabb"},
+    true
   );
 
   tests.emplace_back(
     "matching pairs (a^n b^n, n >= 0)",
     GetMatchingPairsWithEmptyGrammar(),
     std::vector{"", "ab", "aabb", "aaabbb", "aaaabbbb", "aaaaaaaaaaaaabbbbbbbbbbbbb"},
-    std::vector{"a", "b", "aa", "bb", "abb", "aab", "aaaaaaaaaaaaabbbbbbbbbbbb", "aaaaaaaaaaaabbbbbbbbbbbbb"}
+    std::vector{"a", "b", "aa", "bb", "abb", "aab", "aaaaaaaaaaaaabbbbbbbbbbbb", "aaaaaaaaaaaabbbbbbbbbbbbb"},
+    true
   );
 
   tests.emplace_back(
     "nothing",
     GetEmptyGrammar(),
     std::vector<const char*>{},
-    std::vector{"", "a", "b", "ab", "aa", "ba", "bb", "aaabbbbaababaababsdff", "d"}
+    std::vector{"", "a", "b", "ab", "aa", "ba", "bb", "aaabbbbaababaababsdff", "d"},
+    true
   );
 
   tests.emplace_back(
     "only empty word",
     GetEmptyWordGrammar(),
     std::vector{""},
-    std::vector{"a", "b", "ab", "aa", "ba", "bb", "aaabbbbaababaababsdff", "d"}
+    std::vector{"a", "b", "ab", "aa", "ba", "bb", "aaabbbbaababaababsdff", "d"},
+    true
   );
 
   tests.emplace_back(
     "only empty word (sophisticated)",
     GetSophisticatedEmptyWordGrammar(),
     std::vector{""},
-    std::vector{"a", "b", "ab", "aa", "ba", "bb", "abc", "aaabbbbaababaababsdff", "d"}
+    std::vector{"a", "b", "ab", "aa", "ba", "bb", "abc", "aaabbbbaababaababsdff", "d"},
+    false
   );
 
   tests.emplace_back(
     "grammar from akhcheck (parentheses)",
     GetAkhcheckGrammar(),
     std::vector{"aababb", "", "ab", "abab", "aabb", "aabbab"},
-    std::vector{"aabbba", "a", "b", "aa", "bb", "ba", "aba"}
+    std::vector{"aabbba", "a", "b", "aa", "bb", "ba", "aba"},
+    true
   );
 
   tests.emplace_back(
     "buffalo grammar",
     GetBuffaloGrammar(),
     std::vector{"buffalo", "buffalo buffalo", "buffalo buffalo buffalo", "buffalo buffalo buffalo", "buffalo buffalo buffalo buffalo", "buffalo buffalo buffalo buffalo buffalo buffalo buffalo buffalo"},
-    std::vector{"", "buffalo ", " buffalo", " ", "buffal", "uffalo", "buffalo buffal", "buffa lo"}
+    std::vector{"", "buffalo ", " buffalo", " ", "buffal", "uffalo", "buffalo buffal", "buffa lo"},
+    false
+  );
+
+  tests.emplace_back(
+    "lr buffalo grammar",
+    GetLRBuffaloGrammar(),
+    std::vector{"buffalo", "buffalo buffalo", "buffalo buffalo buffalo", "buffalo buffalo buffalo", "buffalo buffalo buffalo buffalo", "buffalo buffalo buffalo buffalo buffalo buffalo buffalo buffalo"},
+    std::vector{"", "buffalo ", " buffalo", " ", "buffal", "uffalo", "buffalo buffal", "buffa lo"},
+    true
   );
 
   tests.emplace_back(
     "lorem ipsum",
     GetLoremIpsumGrammar(),
     std::vector{"lorem.", "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum.", "duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.", "lorem ipsum dolor."},
-    std::vector{"", "lorem", ". lorem.", "lore.", " ", " ."}
+    std::vector{"", "lorem", ". lorem.", "lore.", " ", " ."},
+    true
   );
 
   tests.emplace_back(
     "epsilon_producing grammar",
     GetGrammarWithEpsilonProducing(),
     std::vector{"abcde", "abcd", "abde", "abd", "bcde", "bcd", "bde", "bd"},
-    std::vector{"", "b", "d", "bc", "be", "abce", "acde", "abcdef", "aabcde", "abcdee", "abbcde", "abcdea"}
+    std::vector{"", "b", "d", "bc", "be", "abce", "acde", "abcdef", "aabcde", "abcdee", "abbcde", "abcdea"},
+    true
   );
 
   // clang-format on

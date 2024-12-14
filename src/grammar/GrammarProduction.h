@@ -17,7 +17,7 @@ class NonTerminal {
 
   size_t get_id() const { return id_; }
 
-  ssize_t as_number() const { return -static_cast<ssize_t>(id_ + 1); }
+  ssize_t as_number() const { return -static_cast<ssize_t>(id_ + 2); }
 
   bool operator==(const NonTerminal&) const = default;
 };
@@ -36,6 +36,7 @@ class Terminal {
   explicit Terminal(std::string string) : string_(std::move(string)) {}
 
   std::string_view get_string() const { return string_; }
+  std::string& get_string() { return string_; }
 
   bool operator==(const Terminal&) const = default;
 };
@@ -46,7 +47,7 @@ class GrammarProductionResult {
   static constexpr size_t cTerminalIndex = 0;
   static constexpr size_t cNonTerminalIndex = 1;
 
- protected:
+ private:
   std::list<PartT> parts_;
 
  public:
@@ -138,7 +139,7 @@ class GrammarProductionResult {
       return std::get<cNonTerminalIndex>(*list_iterator_);
     }
 
-    // 0 is reserved for rule end so this function doesn't return it
+    // -1 is reserved for rule end so this function doesn't return it
     ssize_t as_number() const {
       if (is_terminal()) {
         return access_terminal();
@@ -160,11 +161,24 @@ class GrammarProductionResult {
     });
   }
 
+  bool operator==(const GrammarProductionResult& other) const {
+    auto first = cbegin();
+    auto second = other.cbegin();
+
+    for (; first != cend() && second != other.cend(); ++first, ++second) {
+      if (first.as_number() != second.as_number()) {
+        return false;
+      }
+    }
+
+    return first == cend() && second == other.cend();
+  }
+
   bool is_empty() const { return parts_.empty(); }
 
   size_t size() const {
     size_t result = 0;
-    for (const PartT& part: parts_) {
+    for (const PartT& part : parts_) {
       if (std::holds_alternative<Terminal>(part)) {
         result += std::get<Terminal>(part).get_string().size();
       } else {

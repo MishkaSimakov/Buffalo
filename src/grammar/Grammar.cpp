@@ -138,7 +138,7 @@ void Grammar::remove_epsilon_producing() {
 
     productions_[non_terminal].clear();
     for (auto& production : new_productions) {
-      productions_[non_terminal].emplace_back(std::move(production));
+      add_rule(non_terminal, std::move(production));
     }
   }
 
@@ -171,13 +171,13 @@ std::list<GrammarProductionResult> Grammar::generate_reduced_productions(
       for (GrammarProductionResult& result_production : result) {
         result_production.add_part(part);
       }
-        } else {
-          auto copy = result;
-          for (auto& result_production : result) {
-            result_production.add_part(part);
-          }
-          result.splice(result.end(), copy);
-        }
+    } else {
+      auto copy = result;
+      for (auto& result_production : result) {
+        result_production.add_part(part);
+      }
+      result.splice(result.end(), copy);
+    }
   }
 
   return result;
@@ -190,5 +190,11 @@ void Grammar::optimize() {
 }
 
 void Grammar::add_rule(NonTerminal from, GrammarProductionResult to) {
+  for (const auto& production : get_productions_for(from)) {
+    if (production == to) {
+      return;
+    }
+  }
+
   productions_[from].push_back(std::move(to));
 }

@@ -97,17 +97,17 @@ struct ActionsConflictException : std::exception {
   }
 };
 
-class LRTableBuilder {
-  constexpr static auto states_hasher_fn = [](const State& state) {
-    return unordered_range_hasher_fn(
-        state |
-        std::views::transform(
-            [](const std::pair<Position, std::unordered_set<char>>& element) {
-              size_t following_hash = unordered_range_hasher_fn(element.second);
-              return tuple_hasher_fn(element.first, following_hash);
-            }));
-  };
+constexpr auto states_hasher_fn = [](const State& state) {
+  return unordered_range_hasher_fn(
+      state |
+      std::views::transform(
+          [](const std::pair<Position, std::unordered_set<char>>& element) {
+            size_t following_hash = unordered_range_hasher_fn(element.second);
+            return tuple_hasher_fn(element.first, following_hash);
+          }));
+};
 
+class LRTableBuilder {
   const Grammar& grammar_;
 
   std::unordered_map<NonTerminal, std::unordered_set<char>> first_;
@@ -128,8 +128,8 @@ class LRTableBuilder {
   using ActionsTableT = decltype(actions_);
   using GotoTableT = decltype(goto_);
 
-  static constexpr char cWordEndSymbol = 'z' + 1;
-  static constexpr size_t cSymbolsCount = cWordEndSymbol - 'a' + 1;
+  static constexpr char cWordEndSymbol = '\0';
+  static constexpr size_t cSymbolsCount = 128; // use whole ascii table
 
   explicit LRTableBuilder(const Grammar& grammar);
 
@@ -167,7 +167,7 @@ inline std::ostream& operator<<(std::ostream& os,
     for (char symbol : follow) {
       os << symbol << " ";
     }
-    os << "]" << std::endl;
+    os << "] " << std::hash<LRParserDetails::Position>()(position) << std::endl;
   }
 
   return os;

@@ -22,8 +22,7 @@ class Grammar {
  public:
   const auto& get_productions() const { return productions_; }
 
-  std::span<const GrammarProductionResult> get_productions_for(
-      const NonTerminal& non_terminal) const {
+  std::span<const GrammarProductionResult> get_productions_for(const NonTerminal& non_terminal) const {
     auto itr = productions_.find(non_terminal);
 
     if (itr == productions_.end()) {

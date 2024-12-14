@@ -2,26 +2,28 @@
 #include <unordered_map>
 #include <unordered_set>
 
-template <typename... Args>
-struct TupleHasher {
+struct StreamHasher {
  private:
-  struct InternalHasher {
-    size_t current = 0;
-
-    template <typename T>
-    InternalHasher& operator<<(const T& value) {
-      current ^=
-          std::hash<T>()(value) + 0xeeffccdd + (current << 5) + (current >> 3);
-
-      return *this;
-    }
-  };
+  size_t current_ = 0;
 
  public:
+  template <typename T>
+  StreamHasher& operator<<(const T& value) {
+    current_ ^=
+        std::hash<T>()(value) + 0xeeffccdd + (current_ << 5) + (current_ >> 3);
+
+    return *this;
+  }
+
+  size_t get_hash() const { return current_; }
+};
+
+template <typename... Args>
+struct TupleHasher {
   size_t operator()(const Args&... args) const {
-    InternalHasher hasher{};
+    StreamHasher hasher{};
     (hasher << ... << args);
-    return hasher.current;
+    return hasher.get_hash();
   }
 };
 

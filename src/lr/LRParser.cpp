@@ -19,7 +19,7 @@ bool LRParser::predict(std::string_view word) const {
   while (index <= word.size()) {
     char symbol = index < word.size() ? word[index] : cWordEndSymbol;
 
-    Action action = actions_[stack.back()][symbol - 'a'];
+    Action action = actions_[stack.back()][symbol];
 
     if (std::holds_alternative<LRParserDetails::AcceptAction>(action)) {
       return true;

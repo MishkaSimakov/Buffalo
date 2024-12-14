@@ -14,7 +14,7 @@ LRParserDetails::LRTableBuilder::group_by_next(const State& state) {
     ssize_t next_id;
 
     if (copy.iterator == copy.end_iterator()) {
-      next_id = 0;
+      next_id = -1;
     } else {
       next_id = copy.iterator.as_number();
       ++copy.iterator;
@@ -154,7 +154,7 @@ void LRParserDetails::LRTableBuilder::build_states_table() {
     auto grouped = group_by_next(current);
 
     for (auto& [next_id, state] : grouped) {
-      if (next_id == 0) {
+      if (next_id == -1) {
         continue;
       }
 
@@ -283,7 +283,7 @@ LRParserDetails::LRTableBuilder::LRTableBuilder(const Grammar& grammar)
 
     auto grouped = group_by_next(state);
 
-    for (const auto& [position, follow] : grouped[0]) {
+    for (const auto& [position, follow] : grouped[-1]) {
       Action action;
 
       if (position.from == grammar_.get_start()) {
@@ -296,18 +296,18 @@ LRParserDetails::LRTableBuilder::LRTableBuilder(const Grammar& grammar)
       }
 
       for (char symbol : follow) {
-        actions[symbol - 'a'].push_back(action);
+        actions[symbol].push_back(action);
       }
     }
 
-    for (char symbol = 'a'; symbol <= cWordEndSymbol; ++symbol) {
+    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
       if (grouped.contains(symbol)) {
         size_t next_state = info.gotos.at(symbol);
-        actions[symbol - 'a'].emplace_back(ShiftAction{next_state});
+        actions[symbol].emplace_back(ShiftAction{next_state});
       }
 
-      if (actions[symbol - 'a'].empty()) {
-        actions[symbol - 'a'].emplace_back(RejectAction{});
+      if (actions[symbol].empty()) {
+        actions[symbol].emplace_back(RejectAction{});
       }
     }
   }
@@ -319,18 +319,37 @@ LRParserDetails::LRTableBuilder::LRTableBuilder(const Grammar& grammar)
     const auto& state_actions = temp_actions[state_id];
     actions_[state_id].resize(cSymbolsCount);
 
-    for (char symbol = 'a'; symbol <= cWordEndSymbol; ++symbol) {
-      if (state_actions[symbol - 'a'].size() != 1) {
+    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
+      if (state_actions[symbol].size() != 1) {
         conflicts.emplace_back(state_by_index(state_id)->first, symbol,
-                               state_actions[symbol - 'a']);
+                               state_actions[symbol]);
         continue;
       }
 
-      actions_[state_id][symbol - 'a'] = state_actions[symbol - 'a'].front();
+      actions_[state_id][symbol] = state_actions[symbol].front();
     }
   }
 
   if (!conflicts.empty()) {
+    // for (const auto& conflict : conflicts) {
+    //   std::cout << "conflict in state: {\n";
+    //   std::cout << conflict.state;
+    //   std::cout << "}\n";
+    //
+    //   std::cout << "with symbol \"";
+    //   if (std::isprint(conflict.symbol) != 0) {
+    //     std::cout << conflict.symbol;
+    //   } else {
+    //     std::cout << "\\" << static_cast<int>(conflict.symbol);
+    //   }
+    //   std::cout << "\" following actions are possible:\n";
+    //
+    //   for (const auto& action : conflict.actions) {
+    //     std::cout << action << "\n";
+    //   }
+    //   std::cout << std::endl;
+    // }
+
     throw ActionsConflictException(std::move(conflicts));
   }
 }

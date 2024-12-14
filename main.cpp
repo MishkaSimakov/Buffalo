@@ -96,6 +96,18 @@ Grammar ReadGrammar() {
   return builder.get_grammar(start_non_terminal);
 }
 
+Grammar GetAlternativeParenthesesGrammar() {
+  GrammarBuilder builder;
+
+  // here a is (, b is )
+  builder.add_rule('S', "aSbS");
+  builder.add_rule('S', "aSb");
+  builder.add_rule('S', "abS");
+  builder.add_rule('S', "ab");
+
+  return builder.get_grammar();
+}
+
 int main() {
   auto grammar = ReadGrammar();
   auto parser = LRParser::fit(std::move(grammar));
