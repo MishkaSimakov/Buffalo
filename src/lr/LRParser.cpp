@@ -6,7 +6,15 @@ LRParser::LRParser(LRParserDetails::LRTableBuilder table_builder)
 
 LRParser LRParser::fit(Grammar grammar) {
   grammar.optimize();
-  return LRParser(LRParserDetails::LRTableBuilder(grammar));
+
+  auto builder = LRParserDetails::LRTableBuilder(grammar);
+
+  if (!builder.get_conflicts().empty()) {
+    throw LRParserDetails::ActionsConflictException(
+        std::move(builder.get_conflicts()), std::move(grammar));
+  }
+
+  return LRParser(std::move(builder));
 }
 
 bool LRParser::predict(std::string_view word) const {

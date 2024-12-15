@@ -88,9 +88,11 @@ struct Conflict {
 
 struct ActionsConflictException : std::exception {
   std::vector<Conflict> conflicts;
+  Grammar grammar;
 
-  explicit ActionsConflictException(std::vector<Conflict> conflicts)
-      : conflicts(std::move(conflicts)) {}
+  explicit ActionsConflictException(std::vector<Conflict> conflicts,
+                                    Grammar grammar)
+      : conflicts(std::move(conflicts)), grammar(std::move(grammar)) {}
 
   const char* what() const noexcept override {
     return "conflicting actions in LRTableBuilder";
@@ -115,12 +117,14 @@ class LRTableBuilder {
   std::unordered_map<State, StateInfo, decltype(states_hasher_fn)> states_;
   std::vector<std::unordered_map<ssize_t, size_t>> goto_;
   std::vector<std::vector<Action>> actions_;
+  std::vector<Conflict> conflicts_;
 
   static std::unordered_map<ssize_t, State> group_by_next(const State& state);
 
   void build_first_table();
   void build_follow_table();
   void build_states_table();
+  void build_actions_table();
 
   State closure(State state) const;
 
@@ -129,7 +133,7 @@ class LRTableBuilder {
   using GotoTableT = decltype(goto_);
 
   static constexpr char cWordEndSymbol = '\0';
-  static constexpr size_t cSymbolsCount = 128; // use whole ascii table
+  static constexpr size_t cSymbolsCount = 128;  // use whole ascii table
 
   explicit LRTableBuilder(const Grammar& grammar);
 
@@ -137,6 +141,7 @@ class LRTableBuilder {
   auto& get_first_table() { return first_; }
   auto& get_follow_table() { return follow_; }
   auto& get_goto_table() { return goto_; }
+  auto& get_conflicts() { return conflicts_; }
 };
 }  // namespace LRParserDetails
 
@@ -167,7 +172,7 @@ inline std::ostream& operator<<(std::ostream& os,
     for (char symbol : follow) {
       os << symbol << " ";
     }
-    os << "] " << std::hash<LRParserDetails::Position>()(position) << std::endl;
+    os << "] " << std::endl;
   }
 
   return os;

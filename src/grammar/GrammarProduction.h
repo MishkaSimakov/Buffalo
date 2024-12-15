@@ -46,6 +46,7 @@ class GrammarProductionResult {
   using PartT = std::variant<Terminal, NonTerminal>;
   static constexpr size_t cTerminalIndex = 0;
   static constexpr size_t cNonTerminalIndex = 1;
+  static constexpr ssize_t cRuleEndNumber = -1;
 
  private:
   std::list<PartT> parts_;
@@ -139,7 +140,7 @@ class GrammarProductionResult {
       return std::get<cNonTerminalIndex>(*list_iterator_);
     }
 
-    // -1 is reserved for rule end so this function doesn't return it
+    // cRuleEndNumber = -1 is reserved for rule end so this function doesn't return it
     ssize_t as_number() const {
       if (is_terminal()) {
         return access_terminal();

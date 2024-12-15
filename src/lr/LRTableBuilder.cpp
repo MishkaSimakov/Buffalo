@@ -14,7 +14,7 @@ LRParserDetails::LRTableBuilder::group_by_next(const State& state) {
     ssize_t next_id;
 
     if (copy.iterator == copy.end_iterator()) {
-      next_id = -1;
+      next_id = GrammarProductionResult::cRuleEndNumber;
     } else {
       next_id = copy.iterator.as_number();
       ++copy.iterator;
@@ -181,6 +181,69 @@ void LRParserDetails::LRTableBuilder::build_states_table() {
   }
 }
 
+void LRParserDetails::LRTableBuilder::build_actions_table() {
+  auto state_by_index = [this](size_t index) {
+    return std::ranges::find_if(states_, [index](const auto& pair) {
+      return pair.second.index == index;
+    });
+  };
+
+  std::vector<std::vector<std::vector<Action>>> temp_actions;
+  temp_actions.resize(states_.size());
+
+  for (const auto& [state, info] : states_) {
+    auto& actions = temp_actions[info.index];
+    actions.resize(cSymbolsCount);
+
+    auto grouped = group_by_next(state);
+
+    for (const auto& [position, follow] :
+         grouped[GrammarProductionResult::cRuleEndNumber]) {
+      Action action;
+
+      if (position.from == grammar_.get_start()) {
+        action = AcceptAction{};
+      } else {
+        size_t remove_count = position.production.size();
+        NonTerminal next = position.from;
+
+        action = ReduceAction{next, remove_count};
+      }
+
+      for (char symbol : follow) {
+        actions[symbol].push_back(action);
+      }
+    }
+
+    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
+      if (grouped.contains(symbol)) {
+        size_t next_state = info.gotos.at(symbol);
+        actions[symbol].emplace_back(ShiftAction{next_state});
+      }
+
+      if (actions[symbol].empty()) {
+        actions[symbol].emplace_back(RejectAction{});
+      }
+    }
+  }
+
+  actions_.resize(states_.size());
+  for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
+    const auto& state_actions = temp_actions[state_id];
+    actions_[state_id].resize(cSymbolsCount);
+
+    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
+      if (state_actions[symbol].size() != 1) {
+        conflicts_.emplace_back(state_by_index(state_id)->first, symbol,
+                               state_actions[symbol]);
+        continue;
+      }
+
+      actions_[state_id][symbol] = state_actions[symbol].front();
+    }
+  }
+}
+
 LRParserDetails::State LRParserDetails::LRTableBuilder::closure(
     State state) const {
   State result;
@@ -249,107 +312,5 @@ LRParserDetails::LRTableBuilder::LRTableBuilder(const Grammar& grammar)
   build_first_table();
   build_follow_table();
   build_states_table();
-
-  auto state_by_index = [this](size_t index) {
-    return std::ranges::find_if(states_, [index](const auto& pair) {
-      return pair.second.index == index;
-    });
-  };
-
-  // for (size_t i = 0; i < states_.size(); ++i) {
-  //   const auto& [state, info] = *state_by_index(i);
-  //   std::cout << "state #" << i << std::endl;
-  //   std::cout << state << std::endl;
-  //
-  //   std::cout << "gotos:" << std::endl;
-  //   for (auto [from, to] : info.gotos) {
-  //     if (from < 0) {
-  //       std::cout << -(from + 1);
-  //     } else {
-  //       std::cout << static_cast<char>(from);
-  //     }
-  //     std::cout << " -> #" << to << std::endl;
-  //   }
-  //   std::cout << std::endl;
-  // }
-
-  // build actions according to goto
-  std::vector<std::vector<std::vector<Action>>> temp_actions;
-  temp_actions.resize(states_.size());
-
-  for (const auto& [state, info] : states_) {
-    auto& actions = temp_actions[info.index];
-    actions.resize(cSymbolsCount);
-
-    auto grouped = group_by_next(state);
-
-    for (const auto& [position, follow] : grouped[-1]) {
-      Action action;
-
-      if (position.from == grammar_.get_start()) {
-        action = AcceptAction{};
-      } else {
-        size_t remove_count = position.production.size();
-        NonTerminal next = position.from;
-
-        action = ReduceAction{next, remove_count};
-      }
-
-      for (char symbol : follow) {
-        actions[symbol].push_back(action);
-      }
-    }
-
-    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
-      if (grouped.contains(symbol)) {
-        size_t next_state = info.gotos.at(symbol);
-        actions[symbol].emplace_back(ShiftAction{next_state});
-      }
-
-      if (actions[symbol].empty()) {
-        actions[symbol].emplace_back(RejectAction{});
-      }
-    }
-  }
-
-  std::vector<Conflict> conflicts;
-
-  actions_.resize(states_.size());
-  for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
-    const auto& state_actions = temp_actions[state_id];
-    actions_[state_id].resize(cSymbolsCount);
-
-    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
-      if (state_actions[symbol].size() != 1) {
-        conflicts.emplace_back(state_by_index(state_id)->first, symbol,
-                               state_actions[symbol]);
-        continue;
-      }
-
-      actions_[state_id][symbol] = state_actions[symbol].front();
-    }
-  }
-
-  if (!conflicts.empty()) {
-    // for (const auto& conflict : conflicts) {
-    //   std::cout << "conflict in state: {\n";
-    //   std::cout << conflict.state;
-    //   std::cout << "}\n";
-    //
-    //   std::cout << "with symbol \"";
-    //   if (std::isprint(conflict.symbol) != 0) {
-    //     std::cout << conflict.symbol;
-    //   } else {
-    //     std::cout << "\\" << static_cast<int>(conflict.symbol);
-    //   }
-    //   std::cout << "\" following actions are possible:\n";
-    //
-    //   for (const auto& action : conflict.actions) {
-    //     std::cout << action << "\n";
-    //   }
-    //   std::cout << std::endl;
-    // }
-
-    throw ActionsConflictException(std::move(conflicts));
-  }
+  build_actions_table();
 }

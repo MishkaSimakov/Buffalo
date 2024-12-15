@@ -96,21 +96,35 @@ Grammar ReadGrammar() {
   return builder.get_grammar(start_non_terminal);
 }
 
-Grammar GetAlternativeParenthesesGrammar() {
-  GrammarBuilder builder;
+LRParser ReadParser() {
+  auto grammar = ReadGrammar();
 
-  // here a is (, b is )
-  builder.add_rule('S', "aSbS");
-  builder.add_rule('S', "aSb");
-  builder.add_rule('S', "abS");
-  builder.add_rule('S', "ab");
+  try {
+    auto parser = LRParser::fit(std::move(grammar));
+    return parser;
+  } catch (const LRParserDetails::ActionsConflictException& exception) {
+    std::cout << "Given grammar is not LR(1). Following conflicts were "
+                 "encountered during construction:\n";
 
-  return builder.get_grammar();
+    for (size_t i = 0; i < exception.conflicts.size(); ++i) {
+      const auto& conflict = exception.conflicts[i];
+      std::cout << "#" << (i + 1) << ": In state {\n" << conflict.state << "}\n";
+      std::cout << "with symbol \"" << conflict.symbol
+                << "\" following acitons are possible:\n";
+
+      for (const auto& action : conflict.actions) {
+        std::cout << action << "\n";
+      }
+
+      std::cout << "\n";
+    }
+
+    throw;
+  }
 }
 
 int main() {
-  auto grammar = ReadGrammar();
-  auto parser = LRParser::fit(std::move(grammar));
+  auto parser = ReadParser();
 
   size_t words_count;
   std::cin >> words_count;
