@@ -1,142 +1,27 @@
 #include <iostream>
 
-#include "Grammar.h"
-#include "GrammarBuilder.h"
 #include "LRParser.h"
-
-namespace Strings {
-const char* productions_separator = "->";
-const char* invalid_production_syntax =
-    "Every production must look like X -> seq, where X is one non-terminal "
-    "and seq is sequence of terminals and non-termianls.";
-
-const char* invalid_production_left_part =
-    "In the left part of production must be a valid non-terminal.";
-const char* invalid_production_right_part =
-    "In the right part of production must be a sequence of valid "
-    "terminals and non-terminals.";
-
-const char* invalid_start_non_terminal =
-    "Start non-terminal must be a valid non-terminal.";
-}  // namespace Strings
-
-std::pair<char, std::string> ParseProduction(std::string production) {
-  std::erase_if(production,
-                [](char symbol) { return std::isspace(symbol) != 0; });
-
-  // separate string by ->
-  size_t position = production.find(Strings::productions_separator);
-  if (position != 1) {
-    throw std::runtime_error(Strings::invalid_production_syntax);
-  }
-
-  char non_terminal = production[0];
-  std::string production_result = production.substr(3);
-
-  return {non_terminal, std::move(production_result)};
-}
-
-Grammar ReadGrammar() {
-  size_t non_terminals_count;
-  size_t terminals_count;
-  size_t productions_count;
-
-  std::cin >> non_terminals_count >> terminals_count >> productions_count;
-
-  std::unordered_set<char> non_terminals;
-  for (size_t i = 0; i < non_terminals_count; ++i) {
-    char symbol;
-    std::cin >> symbol;
-
-    non_terminals.emplace(symbol);
-  }
-
-  std::unordered_set<char> terminals;
-  for (size_t i = 0; i < terminals_count; ++i) {
-    char symbol;
-    std::cin >> symbol;
-
-    terminals.emplace(symbol);
-  }
-
-  std::string production;
-
-  // skip current line
-  std::getline(std::cin, production);
-
-  GrammarBuilder builder;
-  for (size_t i = 0; i < productions_count; ++i) {
-    std::getline(std::cin, production);
-
-    auto [left, right] = ParseProduction(std::move(production));
-
-    if (!non_terminals.contains(left)) {
-      throw std::runtime_error(Strings::invalid_production_left_part);
-    }
-
-    bool is_right_valid =
-        std::ranges::all_of(right, [&non_terminals, &terminals](char symbol) {
-          return terminals.contains(symbol) || non_terminals.contains(symbol);
-        });
-
-    if (!is_right_valid) {
-      throw std::runtime_error(Strings::invalid_production_right_part);
-    }
-
-    builder.add_rule(left, right);
-  }
-
-  char start_non_terminal;
-  std::cin >> start_non_terminal;
-
-  if (!non_terminals.contains(start_non_terminal)) {
-    throw std::runtime_error(Strings::invalid_start_non_terminal);
-  }
-
-  return builder.get_grammar(start_non_terminal);
-}
-
-LRParser ReadParser() {
-  auto grammar = ReadGrammar();
-
-  try {
-    auto parser = LRParser::fit(std::move(grammar));
-    return parser;
-  } catch (const LRParserDetails::ActionsConflictException& exception) {
-    std::cout << "Given grammar is not LR(1). Following conflicts were "
-                 "encountered during construction:\n";
-
-    for (size_t i = 0; i < exception.conflicts.size(); ++i) {
-      const auto& conflict = exception.conflicts[i];
-      std::cout << "#" << (i + 1) << ": In state {\n" << conflict.state << "}\n";
-      std::cout << "with symbol \"" << conflict.symbol
-                << "\" following acitons are possible:\n";
-
-      for (const auto& action : conflict.actions) {
-        std::cout << action << "\n";
-      }
-
-      std::cout << "\n";
-    }
-
-    throw;
-  }
-}
+#include "RecursiveFunctionsGrammar.h"
 
 int main() {
-  auto parser = ReadParser();
+  std::filesystem::path path =
+      "/Users/mihailsimakov/Documents/Programs/CLionProjects/Buffalo/test.bf";
 
-  size_t words_count;
-  std::cin >> words_count;
+  // getting builders registry
+  auto [builders, _] = cRecursiveFunctionsGrammar;
 
-  std::string word;
-  // skip current line
-  std::getline(std::cin, word);
+  const char* program = "(extern)print(number);add(x,0)=x;add(x,y+1)=successor(add);print_n_times(x,0)=0;print_n_times(x,n+1)=add(print(x),print_n_times);main()=print_n_times(123,123);";
+  auto tokens = Lexing::LexicalAnalyzer::get_tokens(program);
 
-  for (size_t i = 0; i < words_count; ++i) {
-    std::getline(std::cin, word);
+  LRParser parser(path, builders);
+  auto node = parser.parse(tokens);
 
-    bool correct = parser.predict(std::move(word));
-    std::cout << (correct ? "Yes" : "No") << std::endl;
+  if (!node) {
+    std::cout << "ERROR!" << std::endl;
+    return 1;
   }
+
+  PrintSyntaxTreeRecursive("", **node, true);
+
+  return 0;
 }

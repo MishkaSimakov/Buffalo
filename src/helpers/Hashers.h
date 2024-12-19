@@ -2,6 +2,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+inline auto hash_fn = []<typename T>(const T& value) {
+  return std::hash<T>()(value);
+};
+
 struct StreamHasher {
  private:
   size_t current_ = 0;

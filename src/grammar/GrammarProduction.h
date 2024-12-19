@@ -7,13 +7,13 @@
 #include <variant>
 
 #include "Hashers.h"
+#include "lexis/LexicalAnalyzer.h"
 
 class NonTerminal {
-  static size_t id_counter;
   size_t id_;
 
  public:
-  NonTerminal() : id_(id_counter++) {}
+  explicit NonTerminal(size_t id) : id_(id) {}
 
   size_t get_id() const { return id_; }
 
@@ -30,13 +30,12 @@ struct std::hash<NonTerminal> {
 };
 
 class Terminal {
-  std::string string_;
+  Lexing::TokenType token_;
 
  public:
-  explicit Terminal(std::string string) : string_(std::move(string)) {}
+  Terminal(Lexing::TokenType token) : token_(token) {}
 
-  std::string_view get_string() const { return string_; }
-  std::string& get_string() { return string_; }
+  Lexing::TokenType get_token() const { return token_; }
 
   bool operator==(const Terminal&) const = default;
 };
@@ -53,10 +52,8 @@ class GrammarProductionResult {
 
  public:
   GrammarProductionResult() = default;
-  GrammarProductionResult(Terminal part) : parts_({std::move(part)}) {}
+  GrammarProductionResult(Terminal part) : parts_({part}) {}
   GrammarProductionResult(NonTerminal part) : parts_({part}) {}
-
-  static GrammarProductionResult empty() { return {}; }
 
   const std::list<PartT>& get_parts() const { return parts_; }
 
@@ -69,12 +66,10 @@ class GrammarProductionResult {
 
   struct const_iterator {
    private:
-    std::list<PartT>::const_iterator list_iterator_;
-    size_t part_iterator_;
+    std::list<PartT>::const_iterator iterator_;
 
-    const_iterator(std::list<PartT>::const_iterator list_iterator,
-                   size_t part_iterator)
-        : list_iterator_(list_iterator), part_iterator_(part_iterator) {}
+    const_iterator(std::list<PartT>::const_iterator iterator)
+        : iterator_(iterator) {}
 
    public:
     using iterator_category = std::bidirectional_iterator_tag;
@@ -83,22 +78,7 @@ class GrammarProductionResult {
     using difference_type = size_t;
 
     const_iterator operator++() {
-      if (list_iterator_->index() == cNonTerminalIndex) {
-        part_iterator_ = 0;
-        ++list_iterator_;
-        return *this;
-      }
-
-      std::string_view view =
-          std::get<cTerminalIndex>(*list_iterator_).get_string();
-
-      if (view.size() == part_iterator_ + 1) {
-        part_iterator_ = 0;
-        ++list_iterator_;
-      } else {
-        ++part_iterator_;
-      }
-
+      ++iterator_;
       return *this;
     }
 
@@ -109,49 +89,33 @@ class GrammarProductionResult {
     }
 
     const_iterator operator--() {
-      if (list_iterator_->index() == cNonTerminalIndex) {
-        part_iterator_ = 0;
-        --list_iterator_;
-        return *this;
-      }
-
-      if (part_iterator_ == 0) {
-        part_iterator_ = 0;
-        --list_iterator_;
-      } else {
-        --part_iterator_;
-      }
-
+      --iterator_;
       return *this;
     }
 
     bool operator==(const const_iterator&) const = default;
 
-    bool is_terminal() const {
-      return list_iterator_->index() == cTerminalIndex;
-    }
+    bool is_terminal() const { return iterator_->index() == cTerminalIndex; }
 
-    char access_terminal() const {
-      return std::get<cTerminalIndex>(*list_iterator_)
-          .get_string()[part_iterator_];
+    Lexing::TokenType access_terminal() const {
+      return std::get<cTerminalIndex>(*iterator_).get_token();
     }
 
     NonTerminal access_nonterminal() const {
-      return std::get<cNonTerminalIndex>(*list_iterator_);
+      return std::get<cNonTerminalIndex>(*iterator_);
     }
 
-    // cRuleEndNumber = -1 is reserved for rule end so this function doesn't return it
+    // cRuleEndNumber = -1 is reserved for rule end so this function doesn't
+    // return it
     ssize_t as_number() const {
       if (is_terminal()) {
-        return access_terminal();
+        return static_cast<size_t>(access_terminal());
       }
 
       return access_nonterminal().as_number();
     }
 
-    size_t hash() const {
-      return tuple_hasher_fn(&*list_iterator_, part_iterator_);
-    }
+    size_t hash() const { return hash_fn(&*iterator_); }
 
     friend GrammarProductionResult;
   };
@@ -175,23 +139,12 @@ class GrammarProductionResult {
     return first == cend() && second == other.cend();
   }
 
-  bool is_empty() const { return parts_.empty(); }
+  bool empty() const { return parts_.empty(); }
 
-  size_t size() const {
-    size_t result = 0;
-    for (const PartT& part : parts_) {
-      if (std::holds_alternative<Terminal>(part)) {
-        result += std::get<Terminal>(part).get_string().size();
-      } else {
-        ++result;
-      }
-    }
+  size_t size() const { return parts_.size(); }
 
-    return result;
-  }
-
-  const_iterator cbegin() const { return const_iterator{parts_.cbegin(), 0}; }
-  const_iterator cend() const { return const_iterator{parts_.cend(), 0}; }
+  const_iterator cbegin() const { return const_iterator{parts_.cbegin()}; }
+  const_iterator cend() const { return const_iterator{parts_.cend()}; }
 };
 
 template <>
@@ -207,5 +160,3 @@ inline GrammarProductionResult operator+(GrammarProductionResult left,
   left += std::move(right);
   return left;
 }
-
-inline size_t NonTerminal::id_counter = 0;

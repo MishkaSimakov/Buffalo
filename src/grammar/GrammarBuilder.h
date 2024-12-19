@@ -1,23 +1,35 @@
 #pragma once
-
-#include <string_view>
-#include <vector>
-
+#include "BuildersRegistry.h"
 #include "Grammar.h"
 
+template <typename NodeT, bool SaveGrammar>
 class GrammarBuilder {
-  static constexpr char cStartNonTerminal = 'S';
-
-  std::vector<std::pair<char, std::string>> productions_;
-
-  static bool is_valid_terminal(char symbol);
-  static bool is_valid_non_terminal(char symbol);
-  static GrammarProductionResult string_to_production(
-      std::string_view string,
-      std::unordered_map<char, NonTerminal>& non_terminals);
+  struct Empty {};
 
  public:
-  void add_rule(char from, std::string to);
+  BuildersRegistry<NodeT> builders;
+  std::conditional_t<SaveGrammar, Grammar, Empty> grammar;
 
-  Grammar get_grammar(char start = cStartNonTerminal) const;
+  void add(NonTerminal from, GrammarProductionResult to,
+           typename BuildersRegistry<NodeT>::BuilderFnT builder_fn) {
+    auto builder = builders.register_builder(std::move(builder_fn));
+
+    if constexpr (SaveGrammar) {
+      grammar.add_rule(from, std::move(to), builder);
+    }
+  }
+
+  void set_start(NonTerminal start) {
+    if constexpr (SaveGrammar) {
+      grammar.set_start(start);
+    }
+  }
+
+  NonTerminal nonterm() {
+    if constexpr (SaveGrammar) {
+      return grammar.register_nonterm();
+    } else {
+      return NonTerminal{0};
+    }
+  }
 };

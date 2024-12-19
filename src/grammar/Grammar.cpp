@@ -2,26 +2,15 @@
 
 #include <unordered_set>
 
-void Grammar::erase_unlisted(const std::unordered_set<NonTerminal>& keep) {
-  std::erase_if(productions_, [&keep](const auto& pair) {
-    return !keep.contains(pair.first);
-  });
-
-  // we could have removed start non-terminal so we must add new start
-  if (!keep.contains(start_)) {
-    NonTerminal start;
-    set_start(start);
-  }
-}
-
-void Grammar::remove_non_producing() {
+void Grammar::check_non_producing() {
   using PartT = GrammarProductionResult::PartT;
 
   std::unordered_set<NonTerminal> producing;
   std::unordered_set<NonTerminal> to_process;
 
   for (const auto& [non_terminal, productions] : productions_) {
-    for (const GrammarProductionResult& production : productions) {
+    for (const GrammarProductionResult& production :
+         productions | std::views::keys) {
       if (production.is_terminal()) {
         to_process.emplace(non_terminal);
         break;
@@ -34,7 +23,7 @@ void Grammar::remove_non_producing() {
     to_process.clear();
 
     for (const auto& [non_terminal, productions] : productions_) {
-      for (const auto& production : productions) {
+      for (const auto& production : productions | std::views::keys) {
         bool is_producing = std::ranges::all_of(
             production.get_parts(), [&producing](const PartT& part) {
               if (std::holds_alternative<Terminal>(part)) {
@@ -52,10 +41,14 @@ void Grammar::remove_non_producing() {
     }
   }
 
-  erase_unlisted(producing);
+  if (producing.size() != productions_.size()) {
+    throw std::runtime_error(
+        "Grammar contains non-producing non-terms. Consider removing "
+        "them.");
+  }
 }
 
-void Grammar::remove_unreachable() {
+void Grammar::check_unreachable() {
   using PartT = GrammarProductionResult::PartT;
 
   std::unordered_set<NonTerminal> reachable;
@@ -69,7 +62,8 @@ void Grammar::remove_unreachable() {
     to_process.clear();
 
     for (NonTerminal non_terminal : prev_updated) {
-      for (const auto& production : productions_[non_terminal]) {
+      for (const auto& production :
+           productions_[non_terminal] | std::views::keys) {
         for (const PartT& part : production.get_parts()) {
           if (std::holds_alternative<Terminal>(part)) {
             continue;
@@ -84,10 +78,13 @@ void Grammar::remove_unreachable() {
     }
   }
 
-  erase_unlisted(reachable);
+  if (reachable.size() != productions_.size()) {
+    throw std::runtime_error(
+        "Grammar contains unreachable non-terms. Consider removing them.");
+  }
 }
 
-void Grammar::remove_epsilon_producing() {
+void Grammar::check_epsilon_producing() {
   using PartT = GrammarProductionResult::PartT;
 
   // find epsilon producing non-terminals
@@ -95,8 +92,8 @@ void Grammar::remove_epsilon_producing() {
   std::unordered_set<NonTerminal> to_process;
 
   for (const auto& [non_terminal, productions] : productions_) {
-    for (const auto& production : productions) {
-      if (production.is_empty()) {
+    for (const auto& production : productions | std::views::keys) {
+      if (production.empty()) {
         to_process.emplace(non_terminal);
         break;
       }
@@ -108,11 +105,11 @@ void Grammar::remove_epsilon_producing() {
     to_process.clear();
 
     for (const auto& [non_terminal, productions] : productions_) {
-      for (const auto& production : productions) {
+      for (const auto& production : productions | std::views::keys) {
         bool is_epsilon_producing = std::ranges::all_of(
             production.get_parts(), [&epsilon_producing](const PartT& part) {
               if (std::holds_alternative<Terminal>(part)) {
-                return std::get<Terminal>(part).get_string().empty();
+                return false;
               }
 
               return epsilon_producing.contains(std::get<NonTerminal>(part));
@@ -126,44 +123,17 @@ void Grammar::remove_epsilon_producing() {
     }
   }
 
-  // add neccessary rules to grammar
-  for (const auto& [non_terminal, productions] : productions_) {
-    std::list<GrammarProductionResult> new_productions;
-
-    for (const auto& production : productions) {
-      auto reduced =
-          generate_reduced_productions(production, epsilon_producing);
-      new_productions.splice(new_productions.end(), reduced);
-    }
-
-    productions_[non_terminal].clear();
-    for (auto& production : new_productions) {
-      add_rule(non_terminal, std::move(production));
-    }
+  if (!epsilon_producing.empty()) {
+    throw std::runtime_error(
+        "Grammar must not contain epsilon producing rules");
   }
-
-  // remove all rules A -> epsilon
-  for (auto& productions : productions_ | std::views::values) {
-    std::erase_if(productions, [](const GrammarProductionResult& production) {
-      return production.is_empty();
-    });
-  }
-
-  // add S' -> S and potentially S' -> epsilon
-  NonTerminal new_start;
-  add_rule(new_start, start_);
-
-  if (epsilon_producing.contains(start_)) {
-    add_rule(new_start, GrammarProductionResult::empty());
-  }
-
-  set_start(new_start);
 }
+
 std::list<GrammarProductionResult> Grammar::generate_reduced_productions(
     const GrammarProductionResult& production,
     const std::unordered_set<NonTerminal>& epsilon_producing) {
   using PartT = GrammarProductionResult::PartT;
-  std::list result{GrammarProductionResult::empty()};
+  std::list result{GrammarProductionResult{}};
 
   for (const PartT& part : production.get_parts()) {
     if (std::holds_alternative<Terminal>(part) ||
@@ -183,18 +153,19 @@ std::list<GrammarProductionResult> Grammar::generate_reduced_productions(
   return result;
 }
 
-void Grammar::optimize() {
-  remove_non_producing();
-  remove_unreachable();
-  remove_epsilon_producing();
+void Grammar::check() {
+  check_non_producing();
+  check_unreachable();
+  check_epsilon_producing();
 }
 
-void Grammar::add_rule(NonTerminal from, GrammarProductionResult to) {
-  for (const auto& production : get_productions_for(from)) {
+void Grammar::add_rule(NonTerminal from, GrammarProductionResult to,
+                       BuilderFunction builder) {
+  for (const auto& [production, builder_id] : get_productions_for(from)) {
     if (production == to) {
       return;
     }
   }
 
-  productions_[from].push_back(std::move(to));
+  productions_[from].emplace_back(std::move(to), builder);
 }

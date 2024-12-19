@@ -1,8 +1,23 @@
 #include "LRTableBuilder.h"
 
+#include <fstream>
 #include <iostream>
 
 #include "Hashers.h"
+#include "LRTableSerializer.h"
+#include "lexis/LexicalAnalyzer.h"
+
+namespace {
+template <typename K, typename V>
+  requires requires(V value) {
+    { value.empty() } -> std::same_as<bool>;
+  }
+void EraseEmpty(std::unordered_map<K, V>& map) {
+  std::erase_if(map, [](const std::pair<const K, V>& element) {
+    return element.second.empty();
+  });
+}
+}  // namespace
 
 std::unordered_map<ssize_t, LRParserDetails::State>
 LRParserDetails::LRTableBuilder::group_by_next(const State& state) {
@@ -28,40 +43,26 @@ LRParserDetails::LRTableBuilder::group_by_next(const State& state) {
 
 void LRParserDetails::LRTableBuilder::build_first_table() {
   auto update_data = [this] {
-    std::unordered_map<NonTerminal, std::unordered_set<char>> update;
+    std::unordered_map<NonTerminal, TokensBitset> update;
 
     for (const auto& [non_terminal, productions] : grammar_.get_productions()) {
-      for (const auto& production : productions) {
-        if (production.is_empty()) {
-          continue;
-        }
+      auto& nonterm_update = update[non_terminal];
 
-        if (production.cbegin().is_terminal()) {
-          update[non_terminal].insert(production.cbegin().access_terminal());
+      for (const auto& production : productions | std::views::keys) {
+        auto begin = production.cbegin();
+
+        if (begin.is_terminal()) {
+          nonterm_update.add(begin.access_terminal());
         } else {
-          // we encountered non-terminal
-          const auto& symbols =
-              first_[production.cbegin().access_nonterminal()];
-          for (char symbol : symbols) {
-            if (!first_[non_terminal].contains(symbol)) {
-              update[non_terminal].insert(symbol);
-            }
-          }
+          nonterm_update.add(first_[begin.access_nonterminal()]);
         }
       }
 
-      auto itr = update.find(non_terminal);
-
-      if (itr != update.end()) {
-        std::erase_if(itr->second, [this, &non_terminal](char symbol) {
-          return first_[non_terminal].contains(symbol);
-        });
-
-        if (itr->second.empty()) {
-          update.erase(itr);
-        }
-      }
+      // include only updated ones
+      nonterm_update.remove(first_[non_terminal]);
     }
+
+    EraseEmpty(update);
 
     return update;
   };
@@ -70,7 +71,7 @@ void LRParserDetails::LRTableBuilder::build_first_table() {
   while (!curr_added.empty()) {
     // merge into result
     for (auto& [non_terminal, terminals] : curr_added) {
-      first_[non_terminal].merge(terminals);
+      first_[non_terminal].add(terminals);
     }
 
     // find new data
@@ -80,10 +81,10 @@ void LRParserDetails::LRTableBuilder::build_first_table() {
 
 void LRParserDetails::LRTableBuilder::build_follow_table() {
   auto update_data = [this] {
-    std::unordered_map<NonTerminal, std::unordered_set<char>> update;
+    std::unordered_map<NonTerminal, TokensBitset> updated;
 
     for (const auto& [non_terminal, productions] : grammar_.get_productions()) {
-      for (const auto& production : productions) {
+      for (const auto& production : productions | std::views::keys) {
         const auto& parts = production.get_parts();
         for (auto itr = parts.begin(); itr != parts.end(); ++itr) {
           if (std::holds_alternative<Terminal>(*itr)) {
@@ -92,36 +93,36 @@ void LRParserDetails::LRTableBuilder::build_follow_table() {
 
           auto curr_non_terminal = std::get<NonTerminal>(*itr);
           auto next = std::next(itr);
-          std::unordered_set<char> new_follow;
+          auto& nonterm_update = updated[curr_non_terminal];
 
           if (next == parts.end()) {
-            new_follow = follow_[non_terminal];
+            nonterm_update.add(follow_[non_terminal]);
           } else if (std::holds_alternative<Terminal>(*next)) {
-            new_follow = {std::get<Terminal>(*next).get_string().front()};
+            nonterm_update.add(std::get<Terminal>(*next).get_token());
           } else {
             // next is non-terminal
-            new_follow = first_[std::get<NonTerminal>(*next)];
-          }
-
-          for (char symbol : new_follow) {
-            if (!follow_[curr_non_terminal].contains(symbol)) {
-              update[curr_non_terminal].insert(symbol);
-            }
+            nonterm_update.add(first_[std::get<NonTerminal>(*next)]);
           }
         }
       }
     }
 
-    return update;
+    for (auto& [nonterm, nonterm_update] : updated) {
+      nonterm_update.remove(follow_[nonterm]);
+    }
+
+    EraseEmpty(updated);
+
+    return updated;
   };
 
-  std::unordered_map<NonTerminal, std::unordered_set<char>> curr_added;
-  curr_added[grammar_.get_start()].insert(cWordEndSymbol);
+  std::unordered_map<NonTerminal, TokensBitset> curr_added;
+  curr_added[grammar_.get_start()].add(Lexing::TokenType::END);
 
   while (!curr_added.empty()) {
     // merge into result
-    for (auto& [non_terminal, follows] : curr_added) {
-      follow_[non_terminal].merge(follows);
+    for (const auto& [nonterm, follows] : curr_added) {
+      follow_[nonterm].add(follows);
     }
 
     // find new data
@@ -134,7 +135,7 @@ void LRParserDetails::LRTableBuilder::build_states_table() {
   State start_state;
   for (const auto& production : grammar_.get_start_productions()) {
     start_state.emplace(Position(grammar_.get_start(), production),
-                        std::unordered_set{cWordEndSymbol});
+                        TokensBitset::only_end());
   }
   start_state = closure(start_state);
 
@@ -173,27 +174,40 @@ void LRParserDetails::LRTableBuilder::build_states_table() {
     }
   }
 
+  size_t max_nonterm_index =
+      std::ranges::max(grammar_.get_productions() | std::views::keys |
+                       std::views::transform([](NonTerminal nonterm) {
+                         return nonterm.get_id();
+                       }));
+
   goto_.resize(states_.size());
   for (const auto& [index, gotos] : states_ | std::views::values) {
+    auto& state_gotos = goto_[index];
+    state_gotos.resize(max_nonterm_index + 1);
+
     for (const auto& [from, to] : gotos) {
-      goto_[index][from] = to;
+      // only non-terminals
+      if (from <= -2) {
+        goto_[index][-from - 2] = to;
+      }
     }
   }
 }
 
 void LRParserDetails::LRTableBuilder::build_actions_table() {
-  auto state_by_index = [this](size_t index) {
-    return std::ranges::find_if(states_, [index](const auto& pair) {
-      return pair.second.index == index;
-    });
-  };
-
   std::vector<std::vector<std::vector<Action>>> temp_actions;
   temp_actions.resize(states_.size());
 
+  const auto& tokens = Lexing::TokenType::values;
+
+  for (size_t i = 0; i < states_.size(); ++i) {
+    const auto& [state, info] = *state_by_index(i);
+    std::cout << "State #" << i << ":\n" << state << std::endl;
+  }
+
   for (const auto& [state, info] : states_) {
     auto& actions = temp_actions[info.index];
-    actions.resize(cSymbolsCount);
+    actions.resize(tokens.size());
 
     auto grouped = group_by_next(state);
 
@@ -204,57 +218,70 @@ void LRParserDetails::LRTableBuilder::build_actions_table() {
       if (position.from == grammar_.get_start()) {
         action = AcceptAction{};
       } else {
-        size_t remove_count = position.production.size();
+        size_t remove_count = position.production.first.size();
         NonTerminal next = position.from;
+        BuilderFunction builder = position.production.second;
 
-        action = ReduceAction{next, remove_count};
+        action = ReduceAction{next, remove_count, builder};
       }
 
-      for (char symbol : follow) {
-        actions[symbol].push_back(action);
+      for (auto token : Lexing::TokenType::values) {
+        if (follow.contains(token)) {
+          actions[static_cast<size_t>(token)].push_back(action);
+        }
       }
     }
 
-    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
-      if (grouped.contains(symbol)) {
-        size_t next_state = info.gotos.at(symbol);
-        actions[symbol].emplace_back(ShiftAction{next_state});
+    for (Lexing::TokenType token : tokens) {
+      ssize_t index = static_cast<size_t>(token);
+
+      if (grouped.contains(index)) {
+        size_t next_state = info.gotos.at(index);
+        actions[index].emplace_back(ShiftAction{next_state});
       }
 
-      if (actions[symbol].empty()) {
-        actions[symbol].emplace_back(RejectAction{});
+      if (actions[index].empty()) {
+        actions[index].emplace_back(RejectAction{});
       }
     }
   }
 
+  std::vector<Conflict> conflicts;
   actions_.resize(states_.size());
+
   for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
     const auto& state_actions = temp_actions[state_id];
-    actions_[state_id].resize(cSymbolsCount);
+    actions_[state_id].resize(tokens.size());
 
-    for (char symbol = '\0'; symbol < cSymbolsCount; ++symbol) {
-      if (state_actions[symbol].size() != 1) {
-        conflicts_.emplace_back(state_by_index(state_id)->first, symbol,
-                               state_actions[symbol]);
+    for (Lexing::TokenType token : tokens) {
+      ssize_t index = static_cast<size_t>(token);
+
+      if (state_actions[index].size() != 1) {
+        conflicts.emplace_back(state_by_index(state_id)->first, index,
+                               state_actions[index]);
         continue;
       }
 
-      actions_[state_id][symbol] = state_actions[symbol].front();
+      actions_[state_id][index] = state_actions[index].front();
     }
+  }
+
+  if (!conflicts.empty()) {
+    throw ActionsConflictException(std::move(conflicts), std::move(grammar_));
   }
 }
 
 LRParserDetails::State LRParserDetails::LRTableBuilder::closure(
     State state) const {
   State result;
-  State curr_updated = std::move(state);
+  State updated = std::move(state);
 
-  while (!curr_updated.empty()) {
-    auto prev_updated = curr_updated;
-    for (auto& [position, following] : curr_updated) {
-      result[position].merge(following);
+  while (!updated.empty()) {
+    auto prev_updated = updated;
+    for (auto& [position, following] : updated) {
+      result[position].add(following);
     }
-    curr_updated.clear();
+    updated.clear();
 
     for (const auto& updated_position : prev_updated | std::views::keys) {
       if (updated_position.iterator == updated_position.end_iterator() ||
@@ -265,52 +292,65 @@ LRParserDetails::State LRParserDetails::LRTableBuilder::closure(
       auto non_terminal = updated_position.iterator.access_nonterminal();
       auto following_itr = std::next(updated_position.iterator);
 
-      std::unordered_set<char> new_following;
+      TokensBitset new_following;
       if (following_itr == updated_position.end_iterator()) {
         new_following = follow_.at(updated_position.from);
       } else if (following_itr.is_terminal()) {
-        new_following = {following_itr.access_terminal()};
+        new_following.add(following_itr.access_terminal());
       } else {
         // following_itr is non-terminal
         new_following = first_.at(following_itr.access_nonterminal());
       }
 
-      for (const auto& production_result :
+      for (const auto& production :
            grammar_.get_productions_for(non_terminal)) {
-        Position new_position(non_terminal, production_result);
+        Position new_position(non_terminal, production);
 
         // meticulously merge new position into resulting state
-        auto updated_following =
-            new_following |
-            std::views::filter([&result, &new_position](char symbol) {
-              auto itr = result.find(new_position);
-
-              if (itr == result.end()) {
-                return true;
-              }
-
-              return !itr->second.contains(symbol);
-            });
-
-        curr_updated[new_position].insert(updated_following.begin(),
-                                          updated_following.end());
+        updated[new_position].add(new_following);
+        updated[new_position].remove(result[new_position]);
       }
     }
 
-    erase_if(
-        curr_updated,
-        [](const std::pair<const Position, std::unordered_set<char>>& value) {
-          return value.second.empty();
-        });
+    EraseEmpty(updated);
   }
 
   return result;
 }
 
-LRParserDetails::LRTableBuilder::LRTableBuilder(const Grammar& grammar)
-    : grammar_(grammar) {
+LRParserDetails::LRTableBuilder::LRTableBuilder(Grammar grammar)
+    : grammar_(std::move(grammar)) {
+  grammar_.check();
+
+  NonTerminal new_start = grammar_.register_nonterm();
+
+  // this action will never be called so it's index doesn't matter
+  grammar_.add_rule(new_start, grammar_.get_start(), BuilderFunction{0});
+  grammar_.set_start(new_start);
+
   build_first_table();
   build_follow_table();
   build_states_table();
   build_actions_table();
+}
+
+void LRParserDetails::LRTableBuilder::save_to(
+    const std::filesystem::path& path) const {
+  std::ofstream os(path, std::ios_base::binary);
+  LRTableSerializer::serialize(os, actions_, goto_);
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const LRParserDetails::State& state) {
+  for (const auto& [position, follow] : state) {
+    os << position.to_string() << " [ ";
+    for (auto token : Lexing::TokenType::values) {
+      if (follow.contains(token)) {
+        os << static_cast<size_t>(token) << " ";
+      }
+    }
+    os << "] " << std::endl;
+  }
+
+  return os;
 }

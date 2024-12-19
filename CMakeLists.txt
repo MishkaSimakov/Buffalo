@@ -6,6 +6,7 @@ if (POLICY CMP0135)
 endif ()
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_FLAGS "-fsanitize=address")
 
 add_subdirectory(src)
 
@@ -31,3 +32,8 @@ add_subdirectory(tests)
 # main solution
 add_executable(Solution main.cpp)
 target_link_libraries(Solution PUBLIC Buffalo)
+
+# grammar building executable
+add_executable(BuildGrammar build_grammar.cpp)
+target_compile_definitions(BuildGrammar PUBLIC COMPILING_GRAMMAR)
+target_link_libraries(BuildGrammar PUBLIC Buffalo)

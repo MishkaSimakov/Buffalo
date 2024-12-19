@@ -1,63 +1,14 @@
 #pragma once
+#include <filesystem>
 #include <iostream>
 
 #include "Grammar.h"
+#include "Position.h"
+#include "TokensBitset.h"
+#include "lexis/LexicalAnalyzer.h"
 
 namespace LRParserDetails {
-struct Position {
-  NonTerminal from;
-  const GrammarProductionResult& production;
-  GrammarProductionResult::const_iterator iterator;
-
-  Position(NonTerminal from, const GrammarProductionResult& production)
-      : from(from), production(production), iterator(production.cbegin()) {}
-
-  bool operator==(const Position& other) const {
-    // iterator contains pointer to list element in it,
-    // this pointer is unique for different productions
-    return iterator == other.iterator;
-  }
-
-  GrammarProductionResult::const_iterator end_iterator() const {
-    return production.cend();
-  }
-
-  std::string toString() const {
-    std::string result;
-
-    result += std::to_string(from.get_id()) + " -> ";
-
-    for (auto itr = production.cbegin(); itr != production.cend(); ++itr) {
-      if (itr == iterator) {
-        result += '.';
-      }
-
-      if (itr.is_terminal()) {
-        result += itr.access_terminal();
-      } else {
-        result += std::to_string(itr.access_nonterminal().get_id());
-      }
-    }
-
-    if (iterator == production.cend()) {
-      result += '.';
-    }
-
-    return result;
-  }
-};
-}  // namespace LRParserDetails
-
-template <>
-struct std::hash<LRParserDetails::Position> {
-  size_t operator()(const LRParserDetails::Position& position) const {
-    return std::hash<GrammarProductionResult::const_iterator>()(
-        position.iterator);
-  }
-};
-
-namespace LRParserDetails {
-using State = std::unordered_map<Position, std::unordered_set<char>>;
+using State = std::unordered_map<Position, TokensBitset>;
 
 struct StateInfo {
   size_t index;
@@ -69,6 +20,7 @@ struct AcceptAction {};
 struct ReduceAction {
   NonTerminal next;
   size_t remove_count;
+  BuilderFunction builder;
 };
 struct ShiftAction {
   size_t next_state;
@@ -101,23 +53,19 @@ struct ActionsConflictException : std::exception {
 
 constexpr auto states_hasher_fn = [](const State& state) {
   return unordered_range_hasher_fn(
-      state |
-      std::views::transform(
-          [](const std::pair<Position, std::unordered_set<char>>& element) {
-            size_t following_hash = unordered_range_hasher_fn(element.second);
-            return tuple_hasher_fn(element.first, following_hash);
-          }));
+      state | std::views::transform([](const State::value_type& element) {
+        return tuple_hasher_fn(element.first, element.second);
+      }));
 };
 
 class LRTableBuilder {
-  const Grammar& grammar_;
+  Grammar grammar_;
 
-  std::unordered_map<NonTerminal, std::unordered_set<char>> first_;
-  std::unordered_map<NonTerminal, std::unordered_set<char>> follow_;
+  std::unordered_map<NonTerminal, TokensBitset> first_;
+  std::unordered_map<NonTerminal, TokensBitset> follow_;
   std::unordered_map<State, StateInfo, decltype(states_hasher_fn)> states_;
-  std::vector<std::unordered_map<ssize_t, size_t>> goto_;
+  std::vector<std::vector<size_t>> goto_;
   std::vector<std::vector<Action>> actions_;
-  std::vector<Conflict> conflicts_;
 
   static std::unordered_map<ssize_t, State> group_by_next(const State& state);
 
@@ -128,20 +76,24 @@ class LRTableBuilder {
 
   State closure(State state) const;
 
+  auto state_by_index(size_t index) const {
+    return std::ranges::find_if(states_, [index](const auto& pair) {
+      return pair.second.index == index;
+    });
+  }
+
  public:
   using ActionsTableT = decltype(actions_);
   using GotoTableT = decltype(goto_);
 
-  static constexpr char cWordEndSymbol = '\0';
-  static constexpr size_t cSymbolsCount = 128;  // use whole ascii table
-
-  explicit LRTableBuilder(const Grammar& grammar);
+  explicit LRTableBuilder(Grammar grammar);
 
   auto& get_actions_table() { return actions_; }
   auto& get_first_table() { return first_; }
   auto& get_follow_table() { return follow_; }
   auto& get_goto_table() { return goto_; }
-  auto& get_conflicts() { return conflicts_; }
+
+  void save_to(const std::filesystem::path& path) const;
 };
 }  // namespace LRParserDetails
 
@@ -165,15 +117,4 @@ inline std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os,
-                                const LRParserDetails::State& state) {
-  for (const auto& [position, follow] : state) {
-    os << position.toString() << " [ ";
-    for (char symbol : follow) {
-      os << symbol << " ";
-    }
-    os << "] " << std::endl;
-  }
-
-  return os;
-}
+std::ostream& operator<<(std::ostream& os, const LRParserDetails::State& state);
